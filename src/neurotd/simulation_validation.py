@@ -161,6 +161,7 @@ class KnownDelayAudit:
     @staticmethod
     def _plot_figures(candidates, selection, output):
         from matplotlib import pyplot as plt
+        from matplotlib.ticker import MaxNLocator
 
         fig, axes = plt.subplots(1, 2, figsize=(11, 4), constrained_layout=True)
         for evaluation, linestyle in (("native_centers", "-"), ("shared_centers", "--")):
@@ -189,6 +190,7 @@ class KnownDelayAudit:
                 ax.plot(frame.noise_std, frame.delay_rmse_ms, marker=".", label=method)
             ax.set(title=f"Fixed W={window}", xlabel="Noise standard deviation",
                    ylabel="Delay RMSE (ms; native centers)")
+            ax.xaxis.set_major_locator(MaxNLocator(nbins=4))
             ax.grid(alpha=0.3)
             ax.legend(fontsize=8)
         fig.savefig(output / "four_methods_known_delay_rmse.png", dpi=160)
