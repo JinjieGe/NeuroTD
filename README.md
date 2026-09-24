@@ -41,6 +41,26 @@ This process usually takes several minutes.
 
 ## Usage
 
+### Validate window selection against known simulated delays
+
+The original simulations already compute delay RMSE against generating delays.
+An additional audit now records all four methods' unrounded delay trajectories,
+compares NeuroTD's minimum-E window with a retrospective true-RMSE oracle, and
+reports the excess delay RMSE. E is the existing `sqrt(mean(r_k))` alignment
+diagnostic, not manuscript Equation (6)'s q or a calibrated confidence score.
+Ground truth is used for evaluation, **not** to select the E-based result.
+
+```bash
+python examples/validate_known_delays.py --simulation both --smoke
+# Full 11-noise x 6-window grids:
+python examples/validate_known_delays.py --simulation both
+```
+
+Each command writes to a new `validation_runs/` directory without overwriting
+earlier runs. See [the validation guide](docs/known_delay_validation.md) for
+multi-seed runs, output definitions, shared-center checks, and the limitations
+of the original continuous-delay truth convention. Estimators are unchanged.
+
 ### Example 1: Simulation study with discrete time-varying delays
 
 The discrete-delay simulation evaluates NeuroTD under controlled conditions where the delay between two signals changes in a piecewise manner over time. Gaussian noise is added at multiple levels to assess robustness. NeuroTD is compared against Dynamic Time Warping (DTW), Canonical Time Warping (CTW), and FFT-based baselines using root-mean-square error (RMSE).

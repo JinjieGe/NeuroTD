@@ -1,5 +1,6 @@
 # %% continuous time-varying shift simulation + compare NeuroTD/DTW/CTW/FFT
 import datetime
+import os
 import pickle
 from dataclasses import dataclass
 from itertools import product
@@ -17,6 +18,7 @@ from neurotd.simulation_plotting import (
     markers,
     plot_rmse_vs_noise_oracle_vs_quality,
 )
+from neurotd.simulation_validation import KnownDelayAudit
 from neurotd.time_varying_shift import (
     CTWShift,
     DTWShift,
@@ -239,7 +241,7 @@ def plot_signals_and_delays(t, x, y, delays, title_prefix="", figsize=(10, 8)):
 # %%
 # ------------------------ simulation and compare performance ------------------------
 debug = False
-RANDOM_SEED = 2025  # 0, 2025
+RANDOM_SEED = int(os.environ.get("NEUROTD_SIM_SEED", "2025"))
 debug_print = print if debug else lambda x: x
 
 rng = np.random.default_rng(RANDOM_SEED)
@@ -535,6 +537,11 @@ if debug:
 else:
     param_grid = list(product(noise_stds, window_sizes))
 
+if os.environ.get("NEUROTD_SIM_SMOKE") == "1":
+    param_grid = list(product([0.0, 0.02], [65, 513]))
+
+truth_audit = KnownDelayAudit("continuous", RANDOM_SEED, fs)
+
 results = []
 
 for noise_std, window_size in tqdm(param_grid, desc="Running simulations"):
@@ -594,6 +601,13 @@ for noise_std, window_size in tqdm(param_grid, desc="Running simulations"):
     )
     print(f"NeuroTD alignment quality (normalized RMSE): {q_rmse_global:.4g}")
 
+    truth_audit.record(noise_std, window_size, hop_size, q_rmse_global, {
+        "NeuroTD": (centers_neurotd, shifts_neurotd, gt_neurotd_samples),
+        "DTW": (center_idx, shifts_dtw, gt_shift_samples),
+        "CTW": (center_idx, shifts_ctw, gt_shift_samples),
+        "FFT": (center_idx, shifts_fft, gt_shift_samples),
+    })
+
     results.append(
         {
             "noise_std": noise_std,
@@ -613,6 +627,7 @@ df_results = pd.DataFrame(results)
 # datestr = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 # df_results.to_csv(f"simulation_results_continuous_{datestr}.csv", index=False)
 df_results.to_csv(f"simulation_results_continuous.csv", index=False)
+truth_audit.write("known_delay_validation_continuous_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f"))
 with open(f"simulation_results_continuous.pkl", "wb") as f:
     pickle.dump(results, f)
 

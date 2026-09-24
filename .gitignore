@@ -23,6 +23,13 @@
 !pyproject.toml
 !LICENSE.txt
 !CHANGELOG.md
+!examples/
+!examples/validate_known_delays.py
+!tests/
+!tests/test_simulation_validation.py
+!docs/
+!docs/known_delay_validation.md
+!docs/known_delay_validation_checks.md
 
 # ------------------------------------------------------
 # Allow NeuroTD source tree.

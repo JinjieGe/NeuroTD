@@ -2,11 +2,13 @@
 codes for generate:
 (1) fig 2: simulation of discrete time-varying shifts
 (2) supplementary table S1 and S2
-2026.01.15_Frozen exactly the same as the paper submission
+Original submission simulation with additive known-delay validation outputs.
+See docs/known_delay_validation.md; estimators and default settings are unchanged.
 """
 
 # %%
 import datetime
+import os
 from dataclasses import dataclass
 from itertools import product
 
@@ -19,6 +21,7 @@ from scipy.stats import pearsonr, spearmanr
 from tqdm import tqdm
 
 from neurotd.rcParams import rcParams
+from neurotd.simulation_validation import KnownDelayAudit
 from neurotd.neuro_signal import SegmentedSignal, my_ricker
 from neurotd.simulation_plotting import (
     colors,
@@ -51,7 +54,7 @@ def configure_plot():
 
 
 SHOW_TRACE_OF_ONE_NOISE_LEVEL = True  # True, False, True for one noise level and show subfigure b
-RANDOM_SEED = 0
+RANDOM_SEED = int(os.environ.get("NEUROTD_SIM_SEED", "0"))
 fs = sampling_rate = 5120
 # debug_print = print if debug else lambda x: x
 
@@ -88,7 +91,7 @@ window_sizes = ensure_odd_window_size(window_sizes)
 window_sizes_ms = sample_to_time_ms(window_sizes)
 print(f"Window sizes (ms): window_sizes_ms")  # in ms
 
-RANDOM_SEED = 0
+RANDOM_SEED = int(os.environ.get("NEUROTD_SIM_SEED", "0"))
 DEBUG_ONE_NOISE = False  # only for debug of one noise level
 if DEBUG_ONE_NOISE:  # only for debug of one noise level
     # single noise level, we tested that with all segment_to_window_ratios we get similar results as it finds optimal
@@ -96,6 +99,11 @@ if DEBUG_ONE_NOISE:  # only for debug of one noise level
     param_grid = [(paras.noise_stds[1], 513)]
 else:
     param_grid = list(product(paras.noise_stds, window_sizes))
+
+if os.environ.get("NEUROTD_SIM_SMOKE") == "1":
+    param_grid = list(product([0.0, 0.02], [65, 513]))
+
+truth_audit = KnownDelayAudit("discrete", RANDOM_SEED, fs)
 
 results = []
 rng = np.random.default_rng(RANDOM_SEED)
@@ -168,6 +176,13 @@ for noise_std, window_size in tqdm(param_grid, desc="Running simulations"):
     quality_rmse_neurotd, quality_rmse_per_window_neurotd = evaluate_alignment_quality_sliding(
         x, y, shifts_sliding_window, sliding_window_center_idx_neuroTD, window_size
     )
+
+    truth_audit.record(noise_std, window_size, hop_size, quality_rmse_neurotd, {
+        "NeuroTD": (sliding_window_center_idx_neuroTD, shifts_sliding_window, shifts_sliding_window_gt_neuroTD),
+        "DTW": (sliding_window_pair.center_indices, shifts_dtw, shifts_sliding_window_gt),
+        "CTW": (sliding_window_pair.center_indices, shifts_ctw, shifts_sliding_window_gt),
+        "FFT": (sliding_window_pair.center_indices, shifts_fft, shifts_sliding_window_gt),
+    })
 
     # print(
     #     f"Max diff per window: {np.max(np.abs(quality_rmse_per_window_neurotd_old - quality_rmse_per_window_neurotd_old)):.4e}"
@@ -300,6 +315,7 @@ for noise_std, window_size in tqdm(param_grid, desc="Running simulations"):
 
 df_results = pd.DataFrame(results)
 df_results.to_csv(f"simulation_results_discrete.csv", index=False)
+truth_audit.write("known_delay_validation_discrete_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f"))
 df_results
 
 
