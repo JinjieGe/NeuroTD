@@ -12,6 +12,24 @@ Specifically, NeuroTD is evaluated on two real datasets:
 
 _Figure 1_: NeuroTD infers time-varying delays using adaptive sliding-window alignment. Two time-series with changing delays are analyzed by segmenting the signals into overlapping indows and estimating the optimal local shift in each window. The resulting sequence of window-wise estimates is combined to recover a continuous time-varying delay profile, capturing both positive and negative delays over time under noisy conditions.
 
+## Revision evidence and reproducible analyses
+
+The revision studies are organized by scientific question and reviewer comment.
+Start with the [revision code index](examples/revision/README.md),
+[comment-to-code evidence map](docs/revision-evidence-map.md), and
+[run instructions](docs/revision-running.md). These supplements cover score and
+window-selection audits, overlapping-window inference, dataset reporting,
+noise sensitivity, search-range checks, and response figures. Comment 2.5 is
+excluded from this integration.
+
+```bash
+python examples/revision/run.py list
+```
+
+The original estimator and E are unchanged. Historical output tables are labeled
+separately from new runs. See [limitations and missing materials](docs/revision-limitations.md)
+and [integration checks](docs/revision-validation.md) before interpreting results.
+
 ## Installation Instructions (Ubuntu 24.04 LTS, WSL 2.6 in Windows 10/11 Pro)
 
 First, clone and navigate to the repository.
@@ -40,6 +58,26 @@ python -m pip install -e .
 This process usually takes several minutes.
 
 ## Usage
+
+### Validate window selection against known simulated delays
+
+The original simulations already compute delay RMSE against generating delays.
+An additional audit now records all four methods' unrounded delay trajectories,
+compares NeuroTD's minimum-E window with a retrospective true-RMSE oracle, and
+reports the excess delay RMSE. E is the existing `sqrt(mean(r_k))` alignment
+diagnostic, not manuscript Equation (6)'s q or a calibrated confidence score.
+Ground truth is used for evaluation, **not** to select the E-based result.
+
+```bash
+python examples/validate_known_delays.py --simulation both --smoke
+# Full 11-noise x 6-window grids:
+python examples/validate_known_delays.py --simulation both
+```
+
+Each command writes to a new `validation_runs/` directory without overwriting
+earlier runs. See [the validation guide](docs/known_delay_validation.md) for
+multi-seed runs, output definitions, shared-center checks, and the limitations
+of the original continuous-delay truth convention. Estimators are unchanged.
 
 ### Example 1: Simulation study with discrete time-varying delays
 
@@ -86,6 +124,7 @@ src/neurotd/           Importable algorithms and reusable application helpers
 examples/simulations/  Paper simulation and schematic entry points
 examples/ieeg/         Intracranial-recording analysis entry point
 examples/patchseq/     Patch-seq analysis and preprocessing entry points
+examples/revision/     Categorized revision studies, inputs, and aggregate evidence
 examples/legacy/       Preserved exploratory scripts (not supported examples)
 data/processed/       Four previously published processed input files
 docs/assets/          Images used in this README

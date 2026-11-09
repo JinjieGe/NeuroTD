@@ -1,0 +1,56 @@
+NeuroTD 2.4.2 local reanalysis, frozen before new simulation results
+Date: 2026-11-08. Retrospective supplementary analysis, NOT preregistration.
+
+Scope: original sub-01, three sessions, 150 trials, original four label-defined groups.
+Original estimator, E, signal models, previous seeds and project files remain untouched.
+Input: verified trial_region_summary.csv. Original estimand: pooled nonzero absolute-delay
+ratio differences, six comparisons. All group values from a trial stay together.
+Anatomical labels remain unverified; do not make regional population claims.
+
+Methods evaluated without selecting by real-data p:
+1. Session-equal t test, three session-specific ratio differences, df=2, Bonferroni six.
+   Different estimand; requires independent approximately Gaussian session estimates
+   with a common contrast expectation. Not three independent participants.
+2. Delete-one-session jackknife SE around ORIGINAL pooled difference, t df=2.
+   A sensitivity analysis, not automatically valid with three unequal clusters.
+3. Original pooled ratio + Bartlett b=1 HAC SE, with normal reference (diagnostic baseline).
+4. Same HAC statistic with Student-t df=2 as a conservative candidate; df=2 is a
+   chosen reference, NOT an estimated effective df or an established theorem for this statistic.
+5. Same pooled statistic calibrated against the maximum absolute standardized estimation
+   error across all six contrasts in each legacy model. Empirical p is the maximum tail
+   probability over the ten fixed scenarios. A prespecified factor 1.15 on reference
+   scores adds conservatism. This is a finite-model sensitivity envelope, NOT a
+   distribution-free real-data p or a universal correction. Calibration nuisance parameters
+   are fitted from the existing real table; independent simulated draws do not make them
+   independently validated nuisance parameters.
+
+Calibration: reuse unchanged legacy generators A,B1,B2,C1,C2,D1-D5; 20,000 draws each,
+global null, new master seed 202611080242, stage=1. Reference scores are centered on
+known generating contrasts, never on observed real effects. Translation invariance checked.
+Independent validation: 20,000 draws each scenario x G/P1/P2 (600,000 total), stage=2.
+All methods evaluated on common draws. Full family error and coverage reported, not just
+the most favorable scenario. Nominal family levels .05,.01,.001. CP 95% upper bound
+<=1.25*alpha is the legacy operational gate, NOT proof of exact alpha control.
+95% simultaneous interval coverage reported with CP bounds. No changing gate after results.
+Session-equal method is evaluated against its OWN population target, not pooled-ratio truth.
+C2 session ratio finite-sample bias and session heterogeneity must be disclosed.
+Analytic/session methods retain assumptions even if simulation gate passes.
+
+Out-of-library challenges (stage=3; 20,000 draws each; no recalibration):
+E1: independent sessions, AR phi=.97 with real SD/correlation and fixed N.
+E2: C1 plus a shared across-session random group offset (SD=.2 ms).
+These expose model extrapolation and dependence between sessions, not opportunities to
+quietly enlarge the favorable set or tune the procedure.
+
+Pilot: stage=99, 1,000 records per legacy scenario, no formal inference from pilot.
+One worker; BLAS one thread; preserve competing jobs. Checkpoints at scenario granularity.
+Audit hashes input and legacy inference/generator and original estimator before/after.
+Primary delivery: evidence-based resolution, including null/limited findings as needed,
+Chinese analysis, bilingual response and manuscript replacement text in standalone files.
+No automatic edit to manuscript or connected response document.
+If all methods remain conditional/unsupported, explicitly withdraw original Welch inference;
+do not report an invented universal effective sample size or guarantee significance.
+
+References: Ibragimov & Muller (2010), doi:10.1198/jbes.2009.08046,
+https://www.princeton.edu/~umueller/tstat.pdf (session t assumptions only).
+Legacy generators and infer.py are copied byte-for-byte, with provenance, not modified.

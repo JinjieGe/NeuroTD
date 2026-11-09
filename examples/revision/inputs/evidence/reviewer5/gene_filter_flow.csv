@@ -1,0 +1,9 @@
+step,n_genes,n_cells
+IT family ids from metadata,,254.0
+IT ids present in time_delays_all_cells.csv,,237.0
+IT delay cells that are gxp columns,18428.0,237.0
+after dropping 12 inhibitory/glial marker symbols,18416.0,237.0
+expressed in >=50% of those IT cells before marker intersection,7944.0,237.0
+expressed in >=50% and markers removed,7939.0,237.0
+paper stated protein-coding start,18668.0,
+paper stated genes after 50% filter,7988.0,237.0

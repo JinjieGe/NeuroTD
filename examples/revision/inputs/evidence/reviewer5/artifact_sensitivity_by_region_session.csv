@@ -1,0 +1,195 @@
+session,region,n_artifact_trials,n_trials,median_keep_artifact_ms,median_drop_artifact_ms,n_after_drop_artifact
+sub-01_ses-01,Amygdala,2,50,9.0625,9.09375,121915
+sub-01_ses-01,Hippocampus,2,50,10.46875,10.46875,72841
+sub-01_ses-01,Middle Temporal Gyrus,2,50,9.3125,9.3125,1002513
+sub-01_ses-01,Superior Temporal Gyrus,2,50,8.8125,8.8125,123372
+sub-01_ses-02,Amygdala,3,50,9.1875,9.15625,119432
+sub-01_ses-02,Hippocampus,3,50,10.4375,10.4375,71331
+sub-01_ses-02,Middle Temporal Gyrus,3,50,9.375,9.375,983569
+sub-01_ses-02,Superior Temporal Gyrus,3,50,8.71875,8.71875,120077
+sub-01_ses-03,Amygdala,11,50,9.5625,9.53125,99185
+sub-01_ses-03,Hippocampus,11,50,10.625,10.625,59205
+sub-01_ses-03,Middle Temporal Gyrus,11,50,9.4375,9.4375,799599
+sub-01_ses-03,Superior Temporal Gyrus,11,50,9.09375,9.0625,99394
+sub-01_ses-04,Amygdala,8,50,9.5,9.5,106782
+sub-01_ses-04,Hippocampus,8,50,10.65625,10.65625,63770
+sub-01_ses-04,Middle Temporal Gyrus,8,50,9.4375,9.4375,861450
+sub-01_ses-04,Superior Temporal Gyrus,8,50,9.125,9.125,107084
+sub-02_ses-01,Amygdala,2,49,1.4375,1.4375,64771
+sub-02_ses-01,Fusiform Gyrus,2,49,10.0,10.03125,113785
+sub-02_ses-01,Hippocampus,2,49,9.3125,9.3125,69422
+sub-02_ses-01,Middle Temporal Gyrus,2,49,8.0625,8.0625,6552200
+sub-02_ses-01,Parahippocampal Gyrus,2,49,10.34375,10.34375,54029
+sub-02_ses-02,Amygdala,4,47,1.46875,1.46875,59743
+sub-02_ses-02,Fusiform Gyrus,4,47,10.875,10.875,104846
+sub-02_ses-02,Hippocampus,4,47,9.28125,9.28125,63799
+sub-02_ses-02,Middle Temporal Gyrus,4,47,8.375,8.375,6090052
+sub-02_ses-02,Parahippocampal Gyrus,4,47,10.5,10.53125,51011
+sub-02_ses-03,Amygdala,7,50,1.40625,1.375,58146
+sub-02_ses-03,Fusiform Gyrus,7,50,9.34375,9.375,102009
+sub-02_ses-03,Hippocampus,7,50,8.84375,8.84375,63701
+sub-02_ses-03,Middle Temporal Gyrus,7,50,8.28125,8.25,5965601
+sub-02_ses-03,Parahippocampal Gyrus,7,50,10.34375,10.34375,49951
+sub-02_ses-04,Amygdala,2,48,1.8125,1.84375,30086
+sub-02_ses-04,Fusiform Gyrus,2,48,6.84375,6.78125,108201
+sub-02_ses-04,Hippocampus,2,48,8.59375,8.5625,69097
+sub-02_ses-04,Middle Temporal Gyrus,2,48,6.0625,6.03125,6138166
+sub-02_ses-04,Parahippocampal Gyrus,2,48,3.125,3.09375,47733
+sub-02_ses-05,Amygdala,1,44,3.1875,3.21875,25214
+sub-02_ses-05,Fusiform Gyrus,1,44,6.96875,6.96875,101026
+sub-02_ses-05,Hippocampus,1,44,9.21875,9.21875,65096
+sub-02_ses-05,Middle Temporal Gyrus,1,44,6.59375,6.59375,5816259
+sub-02_ses-05,Parahippocampal Gyrus,1,44,5.0,4.96875,43836
+sub-02_ses-06,Amygdala,2,50,1.03125,1.0625,20597
+sub-02_ses-06,Fusiform Gyrus,2,50,3.9375,3.9375,94875
+sub-02_ses-06,Hippocampus,2,50,8.4375,8.4375,71095
+sub-02_ses-06,Middle Temporal Gyrus,2,50,4.75,4.75,5629212
+sub-02_ses-06,Parahippocampal Gyrus,2,50,3.0625,3.0625,44361
+sub-02_ses-07,Amygdala,2,49,3.34375,3.3125,26179
+sub-02_ses-07,Fusiform Gyrus,2,49,7.40625,7.375,113221
+sub-02_ses-07,Hippocampus,2,49,9.09375,9.09375,71145
+sub-02_ses-07,Middle Temporal Gyrus,2,49,6.59375,6.5625,6380845
+sub-02_ses-07,Parahippocampal Gyrus,2,49,5.28125,5.28125,47489
+sub-03_ses-01,Amygdala,3,47,0.1875,0.1875,22352
+sub-03_ses-01,Fusiform Gyrus,3,47,4.75,4.75,436604
+sub-03_ses-01,Hippocampus,3,47,7.09375,7.09375,556106
+sub-03_ses-01,Inferior Temporal Gyrus,3,47,4.8125,4.8125,765952
+sub-03_ses-01,Middle Temporal Gyrus,3,47,0.34375,0.34375,193532
+sub-03_ses-01,Parahippocampal Gyrus,3,47,0.03125,0.03125,21511
+sub-03_ses-02,Amygdala,10,50,7.046875,6.875,3565
+sub-03_ses-02,Fusiform Gyrus,10,50,8.6875,8.65625,390523
+sub-03_ses-02,Hippocampus,10,50,9.09375,9.09375,477543
+sub-03_ses-02,Inferior Temporal Gyrus,10,50,9.15625,9.125,656937
+sub-03_ses-02,Middle Temporal Gyrus,10,50,9.96875,9.9375,142937
+sub-03_ses-02,Parahippocampal Gyrus,10,50,0.03125,0.03125,156
+sub-03_ses-03,Amygdala,0,50,1.96875,1.96875,7411
+sub-03_ses-03,Fusiform Gyrus,0,50,8.53125,8.53125,493537
+sub-03_ses-03,Hippocampus,0,50,7.96875,7.96875,603531
+sub-03_ses-03,Inferior Temporal Gyrus,0,50,8.59375,8.59375,822858
+sub-03_ses-03,Middle Temporal Gyrus,0,50,10.09375,10.09375,179316
+sub-03_ses-03,Parahippocampal Gyrus,0,50,0.03125,0.03125,1267
+sub-04_ses-01,Amygdala,2,49,8.875,8.875,97101
+sub-04_ses-01,Hippocampus,2,49,8.25,8.25,444570
+sub-04_ses-01,Middle Temporal Gyrus,2,49,9.25,9.25,3107172
+sub-04_ses-01,Parahippocampal Gyrus,2,49,9.5625,9.5625,61264
+sub-04_ses-01,Superior Temporal Gyrus,2,49,10.15625,10.15625,71376
+sub-04_ses-02,Amygdala,3,50,8.75,8.75,96888
+sub-04_ses-02,Hippocampus,3,50,8.4375,8.4375,444813
+sub-04_ses-02,Middle Temporal Gyrus,3,50,9.25,9.25,3105924
+sub-04_ses-02,Parahippocampal Gyrus,3,50,9.78125,9.75,60464
+sub-04_ses-02,Superior Temporal Gyrus,3,50,10.1875,10.1875,71362
+sub-05_ses-01,Fusiform Gyrus,8,50,11.53125,11.53125,104626
+sub-05_ses-01,Hippocampus,8,50,7.59375,7.59375,281458
+sub-05_ses-01,Inferior Temporal Gyrus,8,50,0.03125,0.03125,42709
+sub-05_ses-01,Middle Temporal Gyrus,8,50,0.15625,0.15625,146752
+sub-05_ses-02,Fusiform Gyrus,5,50,11.53125,11.53125,113409
+sub-05_ses-02,Hippocampus,5,50,7.6875,7.6875,302771
+sub-05_ses-02,Inferior Temporal Gyrus,5,50,0.03125,0.03125,45719
+sub-05_ses-02,Middle Temporal Gyrus,5,50,0.15625,0.15625,174521
+sub-05_ses-03,Fusiform Gyrus,4,50,11.28125,11.28125,120014
+sub-05_ses-03,Hippocampus,4,50,7.78125,7.78125,311864
+sub-05_ses-03,Inferior Temporal Gyrus,4,50,0.03125,0.03125,46736
+sub-05_ses-03,Middle Temporal Gyrus,4,50,0.15625,0.15625,180285
+sub-06_ses-01,Amygdala,1,50,4.90625,4.90625,142001
+sub-06_ses-01,Fusiform Gyrus,1,50,0.03125,0.03125,1927
+sub-06_ses-01,Hippocampus,1,50,8.4375,8.4375,1877385
+sub-06_ses-01,Middle Temporal Gyrus,1,50,8.0,8.0,1691500
+sub-06_ses-01,Superior Temporal Gyrus,1,50,8.3125,8.3125,615649
+sub-06_ses-02,Amygdala,0,50,4.03125,4.03125,147809
+sub-06_ses-02,Fusiform Gyrus,0,50,0.03125,0.03125,2038
+sub-06_ses-02,Hippocampus,0,50,8.34375,8.34375,1919079
+sub-06_ses-02,Middle Temporal Gyrus,0,50,8.0,8.0,1717896
+sub-06_ses-02,Superior Temporal Gyrus,0,50,8.25,8.25,633796
+sub-06_ses-03,Amygdala,1,49,4.40625,4.40625,139683
+sub-06_ses-03,Fusiform Gyrus,1,49,0.03125,0.03125,1913
+sub-06_ses-03,Hippocampus,1,49,8.4375,8.4375,1844421
+sub-06_ses-03,Middle Temporal Gyrus,1,49,8.03125,8.03125,1654779
+sub-06_ses-03,Superior Temporal Gyrus,1,49,8.1875,8.1875,607976
+sub-06_ses-04,Amygdala,1,50,3.28125,3.28125,122741
+sub-06_ses-04,Fusiform Gyrus,1,50,0.03125,0.03125,4458
+sub-06_ses-04,Hippocampus,1,50,7.34375,7.34375,1848919
+sub-06_ses-04,Middle Temporal Gyrus,1,50,8.03125,8.03125,1660146
+sub-06_ses-04,Superior Temporal Gyrus,1,50,7.59375,7.59375,602432
+sub-06_ses-05,Amygdala,2,50,3.28125,3.28125,120227
+sub-06_ses-05,Fusiform Gyrus,2,50,0.03125,0.03125,4354
+sub-06_ses-05,Hippocampus,2,50,7.34375,7.34375,1811147
+sub-06_ses-05,Middle Temporal Gyrus,2,50,8.03125,8.03125,1626196
+sub-06_ses-05,Superior Temporal Gyrus,2,50,7.59375,7.59375,590160
+sub-06_ses-06,Amygdala,2,50,7.875,7.875,124331
+sub-06_ses-06,Fusiform Gyrus,2,50,0.03125,0.03125,451
+sub-06_ses-06,Hippocampus,2,50,8.96875,8.96875,1796482
+sub-06_ses-06,Middle Temporal Gyrus,2,50,8.40625,8.40625,1731782
+sub-06_ses-06,Superior Temporal Gyrus,2,50,8.71875,8.71875,576523
+sub-06_ses-07,Amygdala,4,50,7.96875,7.96875,119335
+sub-06_ses-07,Fusiform Gyrus,4,50,0.03125,0.03125,437
+sub-06_ses-07,Hippocampus,4,50,9.0,9.0,1721885
+sub-06_ses-07,Middle Temporal Gyrus,4,50,8.4375,8.4375,1659243
+sub-06_ses-07,Superior Temporal Gyrus,4,50,8.71875,8.71875,552928
+sub-07_ses-01,Amygdala,1,49,8.28125,8.28125,226723
+sub-07_ses-01,Hippocampus,1,49,9.3125,9.3125,1664057
+sub-07_ses-01,Inferior Temporal Gyrus,1,49,10.9375,10.9375,212781
+sub-07_ses-01,Middle Temporal Gyrus,1,49,10.375,10.375,2343771
+sub-07_ses-01,Parahippocampal Gyrus,1,49,7.46875,7.46875,13474
+sub-07_ses-01,Superior Temporal Gyrus,1,49,0.03125,0.03125,1016
+sub-07_ses-02,Amygdala,7,48,7.8125,7.84375,191762
+sub-07_ses-02,Hippocampus,7,48,9.375,9.34375,1413786
+sub-07_ses-02,Inferior Temporal Gyrus,7,48,11.25,11.28125,174854
+sub-07_ses-02,Middle Temporal Gyrus,7,48,9.15625,9.125,1966448
+sub-07_ses-02,Parahippocampal Gyrus,7,48,8.65625,8.71875,7175
+sub-07_ses-02,Superior Temporal Gyrus,7,48,0.03125,0.03125,239
+sub-07_ses-03,Amygdala,1,50,9.5625,9.5625,82263
+sub-07_ses-03,Hippocampus,1,50,7.75,7.71875,1182510
+sub-07_ses-03,Inferior Temporal Gyrus,1,50,11.0,11.0,65735
+sub-07_ses-03,Middle Temporal Gyrus,1,50,8.28125,8.28125,1605009
+sub-07_ses-03,Parahippocampal Gyrus,1,50,7.3125,7.3125,4665
+sub-07_ses-03,Superior Temporal Gyrus,1,50,0.03125,0.03125,278
+sub-07_ses-04,Amygdala,2,50,9.46875,9.4375,66958
+sub-07_ses-04,Hippocampus,2,50,7.78125,7.78125,1156349
+sub-07_ses-04,Inferior Temporal Gyrus,2,50,10.96875,11.0,58530
+sub-07_ses-04,Middle Temporal Gyrus,2,50,8.25,8.25,1580019
+sub-07_ses-04,Parahippocampal Gyrus,2,50,7.25,7.25,4468
+sub-07_ses-04,Superior Temporal Gyrus,2,50,0.03125,0.03125,296
+sub-08_ses-01,Amygdala,17,50,10.0625,9.96875,35491
+sub-08_ses-01,Fusiform Gyrus,17,50,10.3125,10.34375,36513
+sub-08_ses-01,Hippocampus,17,50,8.375,8.3125,319065
+sub-08_ses-01,Inferior Temporal Gyrus,17,50,10.0625,10.0,101072
+sub-08_ses-01,Middle Temporal Gyrus,17,50,9.3125,9.28125,3251180
+sub-08_ses-01,Parahippocampal Gyrus,17,50,6.15625,6.15625,69556
+sub-08_ses-02,Amygdala,8,50,10.75,10.625,43846
+sub-08_ses-02,Fusiform Gyrus,8,50,10.28125,10.25,46581
+sub-08_ses-02,Hippocampus,8,50,8.40625,8.375,405977
+sub-08_ses-02,Inferior Temporal Gyrus,8,50,10.0,10.0,128624
+sub-08_ses-02,Middle Temporal Gyrus,8,50,9.21875,9.1875,4137706
+sub-08_ses-02,Parahippocampal Gyrus,8,50,5.875,5.8125,88519
+sub-08_ses-03,Amygdala,5,50,8.90625,8.90625,45540
+sub-08_ses-03,Fusiform Gyrus,5,50,10.0625,10.0625,50305
+sub-08_ses-03,Hippocampus,5,50,8.125,8.09375,434030
+sub-08_ses-03,Inferior Temporal Gyrus,5,50,10.3125,10.3125,138559
+sub-08_ses-03,Middle Temporal Gyrus,5,50,9.09375,9.09375,4392279
+sub-08_ses-03,Parahippocampal Gyrus,5,50,9.03125,9.0,95518
+sub-08_ses-04,Amygdala,4,50,9.0,8.96875,46595
+sub-08_ses-04,Fusiform Gyrus,4,50,10.03125,10.0,51738
+sub-08_ses-04,Hippocampus,4,50,8.09375,8.09375,443683
+sub-08_ses-04,Inferior Temporal Gyrus,4,50,10.3125,10.3125,141586
+sub-08_ses-04,Middle Temporal Gyrus,4,50,9.0625,9.03125,4490600
+sub-08_ses-04,Parahippocampal Gyrus,4,50,9.0,9.0,97319
+sub-08_ses-05,Amygdala,0,49,10.34375,10.34375,50296
+sub-08_ses-05,Fusiform Gyrus,0,49,9.75,9.75,54864
+sub-08_ses-05,Hippocampus,0,49,4.5,4.5,471601
+sub-08_ses-05,Inferior Temporal Gyrus,0,49,10.9375,10.9375,151633
+sub-08_ses-05,Middle Temporal Gyrus,0,49,9.28125,9.28125,4811095
+sub-08_ses-05,Parahippocampal Gyrus,0,49,7.125,7.125,106075
+sub-09_ses-01,Amygdala,2,48,9.8125,9.84375,47090
+sub-09_ses-01,Fusiform Gyrus,2,48,8.3125,8.3125,48218
+sub-09_ses-01,Hippocampus,2,48,8.9375,8.9375,1339337
+sub-09_ses-01,Inferior Temporal Gyrus,2,48,9.25,9.25,214222
+sub-09_ses-01,Middle Temporal Gyrus,2,48,8.84375,8.84375,2048179
+sub-09_ses-01,Parahippocampal Gyrus,2,48,7.34375,7.34375,57053
+sub-09_ses-01,Superior Temporal Gyrus,2,48,3.40625,3.421875,4012
+sub-09_ses-02,Amygdala,7,49,9.78125,9.78125,43004
+sub-09_ses-02,Fusiform Gyrus,7,49,8.25,8.28125,43981
+sub-09_ses-02,Hippocampus,7,49,9.375,9.375,1255617
+sub-09_ses-02,Inferior Temporal Gyrus,7,49,9.25,9.25,196638
+sub-09_ses-02,Middle Temporal Gyrus,7,49,8.875,8.875,1871339
+sub-09_ses-02,Parahippocampal Gyrus,7,49,7.4375,7.4375,52067
+sub-09_ses-02,Superior Temporal Gyrus,7,49,5.25,5.4375,4352

@@ -1,0 +1,30 @@
+{
+  "purpose": "Reviewer 2.7 first concern: signal quality association and controlled noise sensitivity",
+  "scope": "sub-01, ses-01/02/03; original 60 pairs; one subject, descriptive inference only",
+  "archive_version": "000574/0.250610.0938",
+  "estimator": {"W": 1001, "H": 500, "max_shift": 500, "fs": 32000, "window": "rectangle", "continuous": false},
+  "real_data": {
+    "primary": "artifact-free trials, retain zero delays",
+    "sensitivity": ["all trials", "artifact-free correct trials", "original zero-exclusion convention"],
+    "metrics": ["50Hz and 60Hz local spectral prominence, each against neighboring 2-5Hz offsets", "1000-10000Hz / 1-10000Hz power fraction", "RMS and pair absolute log2 RMS ratio"],
+    "spectrum": "Welch 32000-sample Hann, 16000 overlap, constant detrend",
+    "correlations": "Spearman across trials within session/set_size/electrode-pair, n>=10; descriptive, no pooled-window p-values",
+    "anatomy": "neutral electrode bundle labels; legacy region labels only labeled sensitivity because mapping unresolved"
+  },
+  "injection": {
+    "templates": "12: each session x first channel in four bundles; first artifact-free correct trial; one-second segment starting at 1s, padded with original data",
+    "delay_samples": [0, 80, 320],
+    "snr_db": [20, 10, 0, -10],
+    "noise": ["white", "AR1 rho=0.95"],
+    "affected_channels": ["y_only", "both"],
+    "replicates": 20,
+    "amplitude_gain": 1,
+    "seed": 270811,
+    "unit": "one complete constructed signal pair; noise realizations paired across SNR levels",
+    "baseline": "one noiseless pair per template/delay, not repeated",
+    "outcomes": ["mean absolute delay", "signed bias", "delay RMSE", "within two samples fraction", "zero fraction", "boundary fraction"],
+    "interpretation": "recorded waveform used as fixed template, not a noise-free physiological signal; added-noise SNR only"
+  },
+  "validation": "hash official NWB assets, verify trial indexing, compare accelerated implementation to unmodified function on real and constructed data; stop on discrepant shifts",
+  "constraints": "no modification of original code, no alteration of E or window selection, no biological independence claims from windows or trial replicates, no claims of resolving all Comment 2.7"
+}

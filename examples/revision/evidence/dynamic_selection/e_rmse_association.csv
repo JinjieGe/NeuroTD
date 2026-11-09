@@ -1,0 +1,15 @@
+condition_id,endpoint,n,median_spearman_E_RMSE,fraction_argmin_E_equals_argmin_RMSE
+0,null_test,1000,0.2,0.585
+0,dynamic_test,200,0.2,0.995
+1,null_test,1000,0.2,0.914
+1,dynamic_test,200,0.028571428571428574,0.775
+2,null_test,1000,0.028571428571428574,0.921
+2,dynamic_test,200,0.028571428571428574,0.85
+3,null_test,1000,0.7714285714285715,0.955
+3,dynamic_test,200,0.7714285714285715,1.0
+4,null_test,1000,0.4285714285714286,0.974
+4,dynamic_test,200,0.4285714285714286,0.515
+5,null_test,1000,0.4285714285714286,0.98
+5,dynamic_test,200,0.4285714285714286,0.92
+6,null_test,1000,0.6,0.995
+6,dynamic_test,200,0.6,1.0

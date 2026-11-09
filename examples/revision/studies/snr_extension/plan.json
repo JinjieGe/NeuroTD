@@ -1,0 +1,22 @@
+{
+  "question": "Does reducing added-noise SNR increase or decrease estimated delay magnitude, conditional on waveform, true lag and noise structure?",
+  "scope": "one participant, three existing verified NWB sessions; no population inference",
+  "templates": "36: three sessions x first/middle/last artifact-free correct trial x first channel of four bundles; 1-2s of each trial with real padding",
+  "true_delays_samples": [-320, -80, 0, 80, 160, 240, 320, 400],
+  "snr_db": [20, 15, 10, 5, 0, -2.5, -5, -7.5, -10, -15, -20],
+  "noise_types": ["white", "AR1 rho=0.95"],
+  "affected_channels": ["y_only", "both independent"],
+  "replicates": 20,
+  "seed": 27110836,
+  "n_noisy_pairs": 253440,
+  "n_baselines": 288,
+  "noise_only_control": "200 independent pairs per noise type, no common template and no true delay; report magnitude distribution only",
+  "estimator": {"W":1001,"H":500,"max_shift":500,"fs":32000,"rectangle":true,"continuous":false,"gain":1},
+  "primary_outcome": "mean over windows of absolute estimated delay, not absolute value of the mean signed delay",
+  "other_outcomes": ["mean signed delay", "signed bias", "RMSE against generating delay", "fraction within 1 ms", "zero fraction", "boundary fraction", "opposite sign fraction"],
+  "contrasts": ["paired magnitude change versus 20 dB for each fixed template/noise realization", "change versus baseline", "paired changes between adjacent SNR levels"],
+  "effect_labels": "increase >1 ms, decrease <-1 ms, otherwise within +/-1 ms; descriptive threshold fixed before results, not a significance test",
+  "uncertainty": "template mean IQR describes fixed-template heterogeneity; conditional Monte Carlo SE uses independent noise replicates within templates, not overlapping windows",
+  "validation": "baseline recovery and direct-original verification across templates, signs, noise types, noise modes and SNR; preserve source hash",
+  "limits": "added-noise SNR is not physiological SNR; no independent biological sample claims; fixed search bounds may influence low-SNR behavior; no change to E or original estimator"
+}

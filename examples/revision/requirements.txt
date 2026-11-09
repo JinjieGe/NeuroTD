@@ -1,0 +1,5 @@
+# Install the repository first: python -m pip install -e .
+# Supplement-only dependencies; exact historic versions are recorded per run.
+h5py
+numba
+psutil

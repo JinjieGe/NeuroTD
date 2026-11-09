@@ -1,0 +1,4 @@
+session,total_trials,artifact_trials,correct_trials,clean_trials
+ses-01,50,2,44,48
+ses-02,50,3,47,47
+ses-03,50,11,47,39

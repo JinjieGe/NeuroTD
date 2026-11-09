@@ -1,10 +1,12 @@
 # Deny by default: do not publish raw recordings, generated results or environments.
 *
 !.gitignore
+!.gitattributes
 !README.md
 !pyproject.toml
 !LICENSE.txt
 !CHANGELOG.md
+
 !src/
 !src/neurotd/
 !src/neurotd/**/
@@ -28,5 +30,18 @@
 !data/processed/gxp_total_log2_filtered_pc.zip
 !data/processed/m1_patchseq_meta_data.csv
 !data/processed/time_delays_all_cells.csv
+**/__pycache__/
+**/*.pyc
+
+# Curated revision code, small inputs and archived aggregate evidence.
+!examples/revision/**/
+!examples/revision/**/*.json
+!examples/revision/**/*.txt
+!examples/revision/**/*.csv
+!examples/revision/inputs/**/*.npz
+!examples/revision/requirements.txt
+# Never track generated experiment outputs or private acquisition files.
+revision_runs/
+validation_runs/
 **/__pycache__/
 **/*.pyc

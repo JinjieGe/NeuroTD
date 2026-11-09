@@ -1,0 +1,6 @@
+step,n_sweeps,n_cells,rule
+stimulus catalog sweeps,103081,1328,"unique (cell, sweep) with a stored waveform"
+response dict from completed run,104409,,filter_counts.csv; not reloaded
+max(stored stimulus) >= 0.1,90271,1328,"check_stimulus_amplitude low_bound=0.1, up_bound=inf, full waveform"
+spiking QC retained,10637,1294,rows present in time_delays_all_cells.csv; equals completed run 10637
+degree-1 slope fitted,10634,1294,at least 2 stored interval values; x is interval index

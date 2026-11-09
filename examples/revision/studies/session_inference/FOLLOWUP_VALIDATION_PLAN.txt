@@ -1,0 +1,19 @@
+Written after stage-2 results were inspected, including real-data p-values.
+This is a disclosed post-hoc method recommendation, not a blinded/preregistered choice.
+
+Candidate retained for an additional untouched validation set: delete-one-session
+jackknife SE of the original pooled ratio contrast, t(2) reference, six Bonferroni tests.
+Reason: it preserves the original point estimator and passed all 30 legacy 5% and 1%
+operational gates, whereas the within-session HAC-t(2) candidate failed a legacy stress
+scenario and the model envelope extrapolated poorly to phi=.97. Session-equal t(2)
+is retained as a separately labeled estimand sensitivity, not relabeled as pooled inference.
+Neither method resolves dependence between sessions, anatomical uncertainty or generalization
+to other participants. The E2 challenge remains disclosed with its sampling-target caveat.
+
+Do not change the candidate, statistic, thresholds or reference after seeing the final set.
+Use stage=4, same master seed 202611080242, all 10 legacy scenarios x G/P1/P2,
+20,000 new records each. Total 600,000 additional records. Gate unchanged:
+CP95% upper FWER <=1.25 alpha; additionally simultaneous 95% coverage lower CP>=.94.
+Report all .05/.01/.001 results. Failure at any level means no claim of having passed that level.
+This tests simulations conditional on fixed nuisance parameters, not unknown real-data validity.
+Do not silently change alpha to a larger level, enlarge the accepted gate or drop difficult cases.

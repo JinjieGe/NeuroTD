@@ -1,0 +1,5 @@
+# Preserve archived scientific input/evidence bytes for provenance hashes.
+examples/revision/inputs/** -text whitespace=cr-at-eol
+examples/revision/evidence/** -text whitespace=cr-at-eol
+examples/revision/*manifest.csv text eol=lf
+examples/revision/**/*.py text eol=lf
