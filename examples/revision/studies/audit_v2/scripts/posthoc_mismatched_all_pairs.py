@@ -29,7 +29,7 @@ TRIALS = list(range(0, 50, 5))
 
 def main():
     REP = Reporter(C.OUT, heartbeat_s=10)
-    REP.start_stage("事后耦合诊断：全部 60 对不同试次配对")
+    REP.start_stage("Post hoc coupling diagnostic: mismatched trials for all 60 pairs")
     try:
         pc = pd.read_csv(C.ELE / "pair_classification.csv")
         meta = pd.read_csv(C.PREV / "tables/trial_metadata.csv")
@@ -41,10 +41,10 @@ def main():
         done = {p.stem for p in ckdir.glob("*.npy")}
         key = lambda tk: f"s{tk[0]}_t{tk[1]:02d}_p{int(tk[5]):02d}"  # noqa: E731
         todo = [tk for tk in tasks if key(tk) not in done]
-        REP.line(f"总任务 {len(tasks)} 个试次×通道对；断点续跑：可跳过 {len(tasks) - len(todo)}，仍需处理 {len(todo)}；{C.N_WORKERS} 进程")
+        REP.line(f"Total {len(tasks)} trial-by-pair tasks, reusing {len(tasks) - len(todo)} checkpoints, {len(todo)} remaining, {C.N_WORKERS} processes")
         rt = RateTracker(min_units=C.N_WORKERS, min_seconds=10)
         last, k, nf = 0, 0, 0
-        REP.set_progress(done=len(tasks) - len(todo), total=len(tasks), unit="对")
+        REP.set_progress(done=len(tasks) - len(todo), total=len(tasks), unit="pairs")
         with mp.get_context("spawn").Pool(C.N_WORKERS) as pool:
             it = pool.imap_unordered(_delay_task, todo)
             while True:
@@ -59,14 +59,14 @@ def main():
                     np.save(ckdir / f"{key(res['task'])}.npy", res["shifts"].astype(np.int16))
                 else:
                     nf += 1
-                    REP.line(f"错误：{res['task']}；记录为失败。{(res['error'] or 'size')[-300:]}")
-                REP.set_progress(done=len(tasks) - len(todo) + k, total=len(tasks), unit="对", extra=f"失败 {nf}")
+                    REP.line(f"Error: {res['task']}, recorded as failed. {(res['error'] or 'size')[-300:]}")
+                REP.set_progress(done=len(tasks) - len(todo) + k, total=len(tasks), unit="pairs", extra=f"failed {nf}")
                 s, ti, tj, ci, cj, pid = res["task"]
                 REP.set_task(f"ses-0{s} trial {ti}×{tj} pair #{pid}")
                 if time.time() - last >= 10 or k == len(todo):
                     last = time.time()
-                    REP.line(f"[事后耦合诊断] 本次完成 {k}/{len(todo)} 对 | 已保存检查点 {len(tasks) - len(todo) + k - nf}/{len(tasks)} | "
-                             f"失败 {nf} | {rt.text(k, len(todo), '对')}")
+                    REP.line(f"[Post hoc coupling] {k}/{len(todo)} pairs complete | checkpoints {len(tasks) - len(todo) + k - nf}/{len(tasks)} | "
+                             f"failures {nf} | {rt.text(k, len(todo), 'pairs')}")
         # aggregate
         rows = []
         for s in (1, 2, 3):
@@ -100,14 +100,14 @@ def main():
         comp["ratio_mismatched_over_matched"] = comp.delta_mismatched_ms / comp.delta_matched_ms
         comp.to_csv(C.WQC / "posthoc_mismatched_all_pairs_differences.csv", index=False)
         for r in reg.itertuples():
-            REP.line(f"  {I.SHORT[r.Index]}: 同试次池化 {r.pooled_matched_ms:.3f} ms（零值 {r.zero_mat:.3f}）| "
-                     f"不同试次池化 {r.pooled_mismatched_ms:.3f} ms（零值 {r.zero_mis:.3f}）")
+            REP.line(f"  {I.SHORT[r.Index]}: same-trial pooled delay {r.pooled_matched_ms:.3f} ms (zero fraction {r.zero_mat:.3f}) | "
+                     f"mismatched-trial pooled delay {r.pooled_mismatched_ms:.3f} ms (zero fraction {r.zero_mis:.3f})")
         for r in comp.itertuples():
-            REP.line(f"  {r.comparison}: Δ 同试次 {r.delta_matched_ms:+.3f} ms | 不同试次 {r.delta_mismatched_ms:+.3f} ms")
-        REP.end_stage("完成" if nf == 0 else f"完成（{nf} 个失败）")
+            REP.line(f"  {r.comparison}: same-trial difference {r.delta_matched_ms:+.3f} ms | mismatched-trial difference {r.delta_mismatched_ms:+.3f} ms")
+        REP.end_stage("completed" if nf == 0 else f"completed ({nf} failures)")
     except Exception as e:  # noqa: BLE001
-        REP.line(f"错误：{e}\n{traceback.format_exc()}")
-        REP.end_stage("失败", note=str(e)[:200])
+        REP.line(f"Error: {e}\n{traceback.format_exc()}")
+        REP.end_stage("failed", note=str(e)[:200])
         raise
     finally:
         REP.close()

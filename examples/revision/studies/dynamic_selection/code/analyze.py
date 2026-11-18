@@ -393,23 +393,9 @@ def audit_sample(stage, source_hash):
     return {"n": len(tasks), "passed": passed, "failures": failures}
 
 
-def _font():
-    from matplotlib import font_manager
-
-    for path in (
-        "/System/Library/Fonts/PingFang.ttc",
-        "/System/Library/Fonts/STHeiti Light.ttc",
-        "/System/Library/Fonts/Supplemental/Songti.ttc",
-    ):
-        if os.path.exists(path):
-            font_manager.fontManager.addfont(path)
-    plt.rcParams["axes.unicode_minus"] = False
-    plt.rcParams["font.size"] = 10
-
-
 def make_figures(rows, summary):
     os.makedirs(FIGURES, exist_ok=True)
-    _font()
+    plt.rcParams.update({"axes.unicode_minus": False, "font.size": 10})
     _fig_rates(summary)
     _fig_stability(summary)
     _fig_frequency(summary)
@@ -739,13 +725,11 @@ def write_reports(stage, payload, missing, figures):
     if os.path.exists(pilot_path):
         with open(pilot_path, encoding="utf-8") as handle:
             pilot = json.load(handle)
-    text = _chinese_report(stage, payload, missing, figures, bench, pilot)
-    name = "interim_analysis_CN.md" if stage == "interim" else "analysis_CN.md"
+    text = _analysis_report(stage, payload, missing, figures, bench, pilot)
+    name = "interim_analysis.md" if stage == "interim" else "analysis.md"
     with open(os.path.join(REPORTS, name), "w", encoding="utf-8") as handle:
         handle.write(text)
     if stage == "final":
-        with open(os.path.join(REPORTS, "response_2_4_3_CN.md"), "w", encoding="utf-8") as handle:
-            handle.write(_response_cn(payload, missing))
         with open(os.path.join(REPORTS, "response_2_4_3_EN.md"), "w", encoding="utf-8") as handle:
             handle.write(_response_en(payload, missing))
         with open(os.path.join(REPORTS, "methods_discussion_suggestions.md"), "w", encoding="utf-8") as handle:
@@ -759,27 +743,27 @@ def _condition_label(cid):
     return f"{cond['model']}, {cond['noise']} SD={cond['sigma']}{rho}"
 
 
-def _chinese_report(stage, payload, missing, figures, bench, pilot):
+def _analysis_report(stage, payload, missing, figures, bench, pilot):
     ver = payload["verification"]
     lines = [
-        f"# NeuroTD 2.4.3 选窗零分布模拟（{stage}）",
+        f"# Selection-aware null simulation for NeuroTD 2.4.3 ({stage})",
         "",
-        "本报告只覆盖这次指定的模拟。它不是真实数据校准，也没有改论文正文。",
-        "三个校准库如果同时存在，检验的仍是同一批测试记录，不是把样本量乘以三。",
-        "区间的条件是已经完成的校准库。",
+        "This report covers the prespecified simulation. The real-data analysis and manuscript were outside its scope.",
+        "All calibration libraries use the same test records. The libraries provide a stability check.",
+        "Intervals are conditional on the available calibration libraries.",
         "",
-        "## 数据完整性",
+        "## Data integrity",
         "",
-        f"- 已读入记录 {ver['n_rows']} 条，唯一任务号 {ver['unique_ids']}，重复 {ver['duplicate_ids']}。",
-        f"- 分组计数：{ver['split_counts']}。",
-        f"- 缺失任务 {len(missing)}。配置或源码哈希不符 {len(ver['bad_config_or_source'])}。输入哈希不符 {len(ver['bad_input_hash'])}。",
-        f"- 含非有限 E、T 或 RMSE 的记录 {len(ver['nonfinite_rows'])}。这些记录保留，非有限 p 值不计为显著。",
-        f"- 直接复算抽查 {payload['audit']['passed']}/{payload['audit']['n']} 通过。",
+        f"- Records read: {ver['n_rows']}. Unique tasks: {ver['unique_ids']}. Duplicate IDs: {ver['duplicate_ids']}.",
+        f"- Split counts: {ver['split_counts']}.",
+        f"- Missing tasks: {len(missing)}. Configuration or source hash mismatches: {len(ver['bad_config_or_source'])}. Input hash mismatches: {len(ver['bad_input_hash'])}.",
+        f"- Retained records with nonfinite E, T or RMSE: {len(ver['nonfinite_rows'])}. Nonfinite p-values do not count as significant.",
+        f"- Direct recomputation checks passed: {payload['audit']['passed']}/{payload['audit']['n']}.",
         "",
-        "## 误报率、检出率和固定窗",
+        "## False positives, detection and the fixed window",
         "",
-        "主结论使用第一个校准库。p = (1 + 校准库中 T 大于等于观测 T 的个数) / 1000。显著标准是 p < 0.05。",
-        "固定 W=513 使用同一次六窗输出里的该窗，以及同一校准库里 W=513 的 T，没有另跑一套估计。",
+        "The primary test uses library 1. Its p-value is (1 + number of calibration T values at least as large as the observed T)/1000. Significance requires p < 0.05.",
+        "The fixed W=513 result uses its own T from the same six-window run and the corresponding W=513 calibration values.",
         "",
     ]
     for item in payload["rates"]:
@@ -788,105 +772,89 @@ def _chinese_report(stage, payload, missing, figures, bench, pilot):
         if item["mode"] not in ("selected", "fixed_513"):
             continue
         lines.append(
-            f"- 条件 {item['condition_id']}（{_condition_label(item['condition_id'])}），"
-            f"{item['endpoint']}，{item['mode']}：{_fmt_rate(item['libraries']['0'])}。"
+            f"- Condition {item['condition_id']} ({_condition_label(item['condition_id'])}), "
+            f"{item['endpoint']}, {item['mode']}: {_fmt_rate(item['libraries']['0'])}."
         )
-    lines.extend(["", "## 主库误报膨胀的 Holm 诊断", ""])
+    lines.extend(["", "## Holm diagnostic for excess false positives in library 1", ""])
     if not payload["holm"]:
-        lines.append("主库零模型测试还不完整，没有做这项诊断。")
+        lines.append("The primary-library null tests are incomplete, so this diagnostic was omitted.")
     else:
         for row in payload["holm"]:
             lines.append(
-                f"- 条件 {row['condition_id']}: FPR={row['fpr']:.3f}, 单侧 p={row['p_greater']:.4g}, "
-                f"Holm p={row['p_holm']:.4g}, Holm 后{'拒绝' if row['holm_significant'] else '不拒绝'} 0.05。"
+                f"- Condition {row['condition_id']}: FPR={row['fpr']:.3f}, one-sided p={row['p_greater']:.4g}, "
+                f"Holm-adjusted p={row['p_holm']:.4g}. Reject a false-positive rate of 0.05: {'yes' if row['holm_significant'] else 'no'}."
             )
-        lines.append("没有看到膨胀，也不等于这套 p 值已经被证明精确校准。")
-    lines.extend(["", "## 三个校准库", ""])
+        lines.append("Failure to detect excess false positives cannot establish exact calibration.")
+    lines.extend(["", "## Calibration libraries", ""])
     for item in payload["rates"]:
         if item["mode"] != "selected":
             continue
         bits = []
         for lib, stats in sorted(item["libraries"].items()):
-            bits.append(f"库{int(lib)+1} {_fmt_rate(stats)}")
+            bits.append(f"Library {int(lib)+1}: {_fmt_rate(stats)}")
         if bits:
             lines.append(
-                f"- 条件 {item['condition_id']} {item['endpoint']} 选窗：" + "；".join(bits) + "。"
+                f"- Condition {item['condition_id']}, {item['endpoint']}, selected window: " + ", ".join(bits) + "."
             )
-    lines.extend(["", "## 选窗和固定窗的配对差异", ""])
+    lines.extend(["", "## Paired selected- and fixed-window differences", ""])
     for row in payload["paired"]:
         extra = ""
         if "n_library_disagreement" in row:
-            extra = f" 三个已完成库的显著判断不一致 {row['n_library_disagreement']} 条。"
+            extra = f" Significant decisions differed across the three completed libraries for {row['n_library_disagreement']} records."
         lines.append(
-            f"- 条件 {row['condition_id']} {row['endpoint']}: 只选窗显著 {row['n_only_selected']}，"
-            f"只固定窗显著 {row['n_only_fixed']}，都显著 {row['n_both']}，都不显著 {row['n_neither']}。"
-            f" RMSE 选窗减固定窗的中位数 {row['median_rmse_ms_selected_minus_fixed']:.4g} ms，"
-            f"更小 {row['n_selected_rmse_lower']}，更大 {row['n_selected_rmse_higher']}，相等 {row['n_selected_rmse_equal']}。"
+            f"- Condition {row['condition_id']}, {row['endpoint']}: selected only {row['n_only_selected']}, "
+            f"fixed only {row['n_only_fixed']}, both {row['n_both']}, neither {row['n_neither']}."
+            f" Median paired RMSE difference (selected minus fixed): {row['median_rmse_ms_selected_minus_fixed']:.4g} ms. "
+            f"Selected RMSE was lower in {row['n_selected_rmse_lower']}, higher in {row['n_selected_rmse_higher']}, and equal in {row['n_selected_rmse_equal']}."
             + extra
         )
-    lines.extend(["", "## E 和 RMSE", ""])
+    lines.extend(["", "## E and RMSE", ""])
     for row in payload["association"]:
         lines.append(
-            f"- 条件 {row['condition_id']} {row['endpoint']}: 六窗 Spearman 中位数 "
-            f"{row['median_spearman_E_RMSE']:.3f}，E 最小窗等于 RMSE 最小窗的比例 "
-            f"{row['fraction_argmin_E_equals_argmin_RMSE']:.3f}（n={row['n']}）。"
+            f"- Condition {row['condition_id']}, {row['endpoint']}: median six-window Spearman correlation "
+            f"{row['median_spearman_E_RMSE']:.3f}. Minimum E and minimum RMSE selected the same window in a fraction "
+            f"{row['fraction_argmin_E_equals_argmin_RMSE']:.3f} (n={row['n']})."
         )
     lines.extend(
         [
             "",
-            "预先规定：动态检出的 95% Clopper–Pearson 下限高于 0.5，才把该条件称为能较稳定识别。",
-            "下限不超过 0.5 的条件，不把动态延迟称为可靠识别。",
+            "The prespecified criterion for consistent detection requires the lower 95% Clopper–Pearson bound for power to exceed 0.5.",
+            "Conditions with lower bounds of 0.5 or less do not meet this criterion.",
             "",
-            "## 零噪声基准",
+            "## Zero-noise benchmark",
             "",
-            "正式运行前，包装结果和原函数在 2 个模型、6 个窗、零噪声及 SD=0.02 共 24 项上逐项逐位一致。"
-            f" 容差是整数和浮点都逐位比较，atol={bench['tolerance']['atol']}。",
-            "历史动态网格 CSV 与这 24 项的 RMSE 和 E 逐位一致的个数见基准文件。"
-            "那份 CSV 不是本轮 29379 条蒙特卡洛，不能代替本轮检查点。",
+            "Before the full run, wrapper and original outputs matched bit for bit for 24 settings: two models, six windows, zero noise and SD 0.02."
+            f" Absolute tolerance for the numerical checks: {bench['tolerance']['atol']}.",
+            "The benchmark file records the number of exact RMSE and E matches with the historical dynamic grid CSV. "
+            "That CSV covers a separate experiment. The 29,379 Monte Carlo records have their own checkpoints.",
             "",
-            "## 并行",
+            "## Parallel execution",
             "",
         ]
     )
     if pilot:
         lines.append(
-            f"测速后选用 {pilot.get('chosen_workers')} 个进程。相对单进程稳态吞吐的加速比约为 "
-            f"{pilot.get('speedup_vs_single')}。持续小试与短测的比值是 {pilot.get('sustained_ratio')}。"
-            "测速使用 split_id=99，没有进入正式统计。"
+            f"The pilot selected {pilot.get('chosen_workers')} processes. The estimated speedup over steady-state single-process throughput was "
+            f"{pilot.get('speedup_vs_single')}. The sustained-to-short pilot throughput ratio was {pilot.get('sustained_ratio')}. "
+            "Pilot split_id=99 is excluded from the formal analysis."
         )
-    lines.extend(["", "## 图", ""])
+    lines.extend(["", "## Figures", ""])
     for name in figures:
         lines.append(f"- figures/{name}")
     lines.extend(
         [
             "",
-            "## 这轮能回答的问题和限制",
+            "## Scope and interpretation",
             "",
-            "能回答的是：在这七个指定模拟条件下，原 E 选窗相对固定 W=513 是否改变误报率和动态检出率，",
-            "三个独立校准库是否把同一批测试推到不同结论，以及较小的 E 是否对应较小的 RMSE。",
-            "不能外推到真实数据，不能代替旧的全部 2.4.1 步长或重建敏感性分析，也不能说明论文已经修改。",
-            "p 值依赖这 999 条零模型；并列被保守地算进分子，所以不会出现 p=0。",
-            "搜索边界命中率按原始整数搜索是否落到 ±W/2 计算。连续模式对外使用的延迟仍是原重叠相加后的浮点曲线。",
+            "These seven conditions compare minimum-E selection and fixed W=513 for false-positive rates and power. ",
+            "They assess agreement across calibration libraries on identical test records and the association between E and RMSE.",
+            "Extrapolation to real data, the earlier 2.4.1 hop and reconstruction analyses, and manuscript changes fall outside this experiment.",
+            "The p-values depend on 999 null records per library. Ties count in the numerator, so the smallest p-value is positive.",
+            "Boundary hits use the original integer search at ±W/2. Continuous-mode output retains the original floating-point overlap-add delay curve.",
             "",
         ]
     )
     return "\n".join(lines) + "\n"
-
-
-def _response_cn(payload, missing):
-    return (
-        "# 审稿意见 2.4.3 回复（中文）\n\n"
-        "我们用原 NeuroTD 估计器和原对齐评分 E，在指定的七个模拟条件上做了选窗零分布实验。"
-        "每个条件有三个互相独立的 999 条零模型校准库、1000 条零模型测试和 200 条动态测试。"
-        "每条记录都对六个候选窗完整估计后再按最小 E 选窗。固定 W=513 取自同一次估计，没有另跑一套。\n\n"
-        "主 p 值只用第一个校准库：p=(1+校准统计量大于等于观测统计量的个数)/1000，显著性水平 0.05。"
-        "另外两个库只看稳定性，不挑选最好看的库。1000 条测试在三个库之间是同一批记录。\n\n"
-        "数值结果见 `results/rates.csv`、`results/holm_fpr.csv` 和 `reports/analysis_CN.md`。"
-        f"本次分析时缺失任务 {len(missing)} 条。\n\n"
-        "这些结果只说明指定模拟里的误报率、检出率、选窗分布，以及 E 和 RMSE 的关系。"
-        "它们不证明真实数据上的校准，也不表示论文正文已经按此修改。\n"
-        "若主库没有检出误报膨胀，这只是 Holm 校正后的二项诊断没有拒绝 0.05，不是精确校准的证明。\n"
-    )
 
 
 def _response_en(payload, missing):
@@ -902,7 +870,7 @@ def _response_en(payload, missing):
         "with a threshold of 0.05. The other libraries are used for stability, not for choosing a favorable null. "
         "The 1000 test records are the same records under every library.\n\n"
         "Counts, Clopper-Pearson intervals, Holm-adjusted false-positive diagnostics, window frequencies, "
-        "and the E-RMSE comparison are in `results/` and `reports/analysis_CN.md`. "
+        "and the E-RMSE comparison are in `results/` and `reports/analysis.md`. "
         f"Missing tasks at the time of this text: {len(missing)}.\n\n"
         "The evidence is limited to these simulation conditions. It is not a real-data calibration, "
         "it does not replace the earlier window, hop, and reconstruction checks, and the manuscript text was not changed. "

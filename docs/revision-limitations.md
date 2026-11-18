@@ -1,28 +1,22 @@
-# 证据边界、缺项与版本说明
+# Scope and limits of the revision evidence
 
-## 明确不包含
+## Scope
 
-- Comment 2.5 的跨试次、跨sweep、BASC、split-half、ICC及相关校准。不要因个别脚本出现 trial、sweep 等词便将数据清点或统计依赖分析误计为可靠性验证。
-- 私人审稿邮件、原文档/聊天导出、登录凭证、Overleaf备份、原始NWB、大型逐窗检查点、Metascape自动提交。
-- 未完成的波形对应关系验证、SNR调整后的脑区效应、方向性传输或基因因果机制结论。
+The revision bundle covers the analyses listed in the [comment-to-code map](revision-evidence-map.md). Comment 2.5, including cross-trial and cross-sweep reliability, ICC, split-half, and BASC analyses, is outside this release. Private correspondence, document exports, raw NWB files, and large window checkpoints are excluded.
 
-## 历史文件不完整的项目
+## Historical materials
 
-1. **2.3早期多种信号条件扫描**：聊天报告曾出现65/129/257/513/1025均被选中的结果，但本机未找到那一轮完整的生成脚本与配置。本包提供已核对的1200次重复及搜索范围消融；不把它们伪装成那一轮扫描。需要补回实验室的 `window_bias_rebuttal` / `window_score_methods` 原目录才能复核全部早期说法。
-2. **2.6原始清点脚本**：收到的 `reviewer5_closure.zip` 含审计表、回复及图，没有Python代码。本包保留所需的公开派生汇总，并新增明确标识的元数据清点工具；没有声称恢复了原缺失脚本。原项目Patch-seq/iEEG处理入口另外保留。
-3. **2.4早期审计链**：`audit_v1–v3`读取此前的逐窗检查点、资产记录及指定历史源哈希。这些大型输入不纳入Git。保留哈希检查，不为了让脚本通过而删除校验。旧代码需按历史环境和源版本复现，最新统计入口为 `session_inference`。
-4. **图4b与基因集合来源**：历史热图的通道、试次、汇总方式，以及论文与当前表达矩阵的基因总数差异，仍需原作者资料，不能通过整理代码消除。
+1. **Window selection (2.3).** An early signal sweep reported selections at 65, 129, 257, 513, and 1025 samples. Its full scripts and configuration would be needed to reproduce that particular scan (historical folders `window_bias_rebuttal` and `window_score_methods`). The included 1,200 repetitions and search-range comparison cover the specified archived designs.
+2. **Dataset inventory (2.6).** The historical `reviewer5_closure.zip` provided tables and figures. The repository includes a new metadata inventory utility alongside the existing iEEG and Patch-seq entry points.
+3. **Earlier statistical audits (2.4).** The `audit_v1` through `audit_v3` scripts refer to historical source hashes, NWB assets, and window checkpoints. Reproduction requires matching versions of those inputs. The final regional comparisons use `session_inference/code/calibrated_welch.py`.
+4. **Figure 4b and expression data.** Reconstructing the historical heatmap requires the original channel, trial, and aggregation choices. Reconciling the gene counts requires the original expression feature list.
 
-## 统计和生物学解释
+## Statistical and biological interpretation
 
-- 低SNR既可高估小延迟，也可低估大延迟；这不等于真实海马高延迟已经排除SNR混杂。
-- 相同模板的加噪声实验不能证明不同真实通道具有相同事件或相同形态。
-- 脑区分组使用原有元数据，解剖对应仍需独立核实；同组不等于同神经元，也不保证相同半球或同一电极束。
-- 2.4.2 的 Welch 型比较以三个固定会话内试次的汇总量估计变异。在验证库外的共享组别偏移情形下，误报率可很高。这限制了对其他会话和人群的推断。
-- E/q的外层单调变换与内部不同汇总方式是两件事，不应声称实际E和论文q在所有数据上选窗相同。
+- Added noise can increase small estimated delay magnitudes and reduce large ones. The template experiment cannot rule out a regional SNR confound in the observed hippocampal differences. Shifting the same template guarantees shared events by construction.
+- A shared region label does not establish a shared hemisphere, bundle, or neuron. Some anatomical labels require further verification.
+- The Welch-type analysis estimates variability from trial summaries within three fixed sessions. In stress tests with shared group offsets outside the calibration library, false-positive rates can be high. Generalization to new sessions or participants requires additional data.
+- The outer monotonic transform in the submitted score q and its aggregation of squared residuals are separate operations. The implemented E can rank candidates differently from q.
+- The matched-control analysis reapplies Holm to stored rank p-values and aggregates per-record tracking errors. Its familywise false-positive rates apply to the simulated constant-delay controls. They do not estimate what fraction of real delay fluctuations are artifacts.
 
-## 整理时的验证层级
-
-本轮检查路径搬移、源代码保护、科学函数一致性和部分图表再生成。各模块历史结果的来源哈希与整理后文件哈希分开列出。整理后的全量长实验尚未全部重新运行；这不是新的全量复现报告。
-
-2.4.3 的匹配对照从保存的原始秩检验 p 值重做组内 Holm 校正，并按记录汇总轨迹误差。各条件的整组误报率描述恒定对照，不能据此推算真实曲线上由伪影造成的波动比例。
+[Validation records](revision-validation.md) distinguish regenerated outputs from archived results. Source and packaged hashes are recorded separately in the manifests.

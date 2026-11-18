@@ -155,18 +155,18 @@ def take_snapshot(source_hash, file_hashes):
     os.makedirs(os.path.dirname(note), exist_ok=True)
     with open(note, "w", encoding="utf-8") as handle:
         handle.write(
-            "# 源码差异\n\n"
-            "本机工作区没有 `.git`，不能从提交对象复核 `1a6c4f23818bcfe3152f947c54c553a92edeca0c`。\n\n"
-            "当前 `src/neurotd/time_varying_shift.py` 的 SHA-256 是 "
-            "`09493e0070feb66251ca212ae05cf556013fef15b9b5d58bf19a616beefb7e84`。\n"
-            "把 `_repro_diff_vs_1a6c4f2/time_varying_shift.py.diff` 逆向应用到临时副本后，"
-            "SHA-256 等于指定的 `28bb49eba3df7ea1e3d45d7afaea26a392c958ffae4aacbcc56b6b9cef68ce0b`。\n"
-            "差异只有可选的 progress 回调。本实验调用时不传入 progress，这些语句不会执行。\n"
-            "估计器、E、信号模型和随机种子都没有改。原项目文件没有被覆盖或切换。\n\n"
-            "`fig3_simulation_continuous_shift.py` 的已存差异从第 294 行附近的进度条开始，"
-            "连续信号生成函数在这之前，不在该差异里。\n"
-            "`neuro_signal.py` 和 `utils.py` 没有对应的差异文件；由于没有 git 对象，不能把它们单独认证为该提交。\n"
-            "实验只读调用当前工作区里的原函数。\n"
+            "# Historical source comparison\n\n"
+            "The archive workspace had no Git metadata. The audit could not verify commit "
+            "1a6c4f23818bcfe3152f947c54c553a92edeca0c directly.\n\n"
+            "SHA-256 of the time_varying_shift.py used for the audit: "
+            "09493e0070feb66251ca212ae05cf556013fef15b9b5d58bf19a616beefb7e84.\n"
+            "Reversing the stored _repro_diff_vs_1a6c4f2/time_varying_shift.py.diff on a temporary "
+            "copy yielded SHA-256 28bb49eba3df7ea1e3d45d7afaea26a392c958ffae4aacbcc56b6b9cef68ce0b. "
+            "The differences were optional progress callbacks, unused in this experiment. The estimator, E, "
+            "signal models, seeds and original project files were preserved.\n\n"
+            "The stored fig3_simulation_continuous_shift.py diff starts near line 294, after the "
+            "continuous signal generator. No stored diffs or commit objects were available to authenticate "
+            "neuro_signal.py and utils.py independently. The experiment called the available functions read-only.\n"
         )
     return snap
 

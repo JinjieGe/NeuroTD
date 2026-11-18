@@ -1,41 +1,34 @@
-# 本次实现的验证记录（2026-09-24）
+# Known-delay validation record, September 24, 2026
 
-基于仓库提交 `1a6c4f23818bcfe3152f947c54c553a92edeca0c` 增加独立的真值评估输出。
-核心估计器、E 计算函数、默认信号模型及原表格计算没有修改。
+This audit added ground-truth comparisons to commit `1a6c4f23818bcfe3152f947c54c553a92edeca0c` while retaining the estimator, E, default signal models, and original table calculations.
 
-## 已完成
+## Checks performed
 
-- 10 项单元测试通过，包括真实估计器对非周期随机信号 +8 samples 延迟的恢复、单位换算、E 选窗不读取真实 RMSE、平局、零分母和共同时间点。
-- 离散完整网格：seed 0、1、2，每个 11 噪声 × 6 窗口，共 198 个组合。
-- 每个离散 seed 新增模块计算的 264 个方法 RMSE 和 66 个 E 均与同次运行的原脚本输出一致（浮点容差 1e-12）。这验证计算路径一致性，不等于全部论文数值复现。
-- 连续小规模测试：seed 2025，噪声 0/0.02，W=65/513，共 4 个组合；16 个方法 RMSE 与原输出一致。
-- 新增比较图已经检查排版。连续完整 66 组合及多 seed 连续验证**本次没有运行**。
+- Ten unit tests passed, including recovery of a +8-sample shift in an aperiodic signal, unit conversion, E-based selection independent of true RMSE, ties, zero denominators, and shared centers.
+- The full discrete grid covered seeds 0, 1, and 2, eleven noise levels, and six windows, for 198 combinations.
+- For each discrete seed, the audit's 264 method RMSEs and 66 E values matched the original script in the same run within a floating-point tolerance of 1e-12.
+- The continuous smoke run used seed 2025, noise 0 and 0.02, and windows 65 and 513. Its 16 method RMSEs matched the original outputs. The comparison figures were inspected. This September audit covered four continuous conditions.
 
-## 关键结果（原脚本有效中心点）
+## Discrete results at native window centers
 
-| 离散 seed | E 选窗达到真值最小 RMSE 的噪声水平数 | 最大额外 RMSE |
+| Seed | Noise levels where automatic selection attained oracle RMSE | Maximum excess RMSE |
 |---|---:|---:|
 | 0 | 11/11 | 0 ms |
 | 1 | 11/11 | 0 ms |
 | 2 | 7/11 | 70.556315 ms |
 
-seed 2 的失败情形：
+For seed 2, four conditions produced large errors.
 
-| 噪声 | E 所选 W | 真值 oracle W | E 所选延迟 RMSE | oracle 延迟 RMSE |
+| Noise SD | E-selected W | Oracle W | Automatic delay RMSE | Oracle delay RMSE |
 |---:|---:|---:|---:|---:|
 | 0.04 | 1025 | 513 | 70.710723 ms | 0.154408 ms |
 | 0.06 | 1025 | 513 | 70.710723 ms | 0.169146 ms |
 | 0.08 | 1025 | 513 | 70.710723 ms | 0.182698 ms |
 | 0.10 | 1025 | 513 | 70.710723 ms | 0.218366 ms |
 
-这些结果说明：即使原 seed 表现良好，E 也不能被当成延迟准确度的保证。
-本次没有针对这些失败修改窗口候选集、估计器或选窗指标，也没有将 oracle 结果替换成算法结果。
+The same estimator and candidate set can align repeated signals well while yielding a large delay error. All failures are retained. The four methods shared just six centers across the full discrete grid. The continuous smoke test compares only two candidate windows. The run manifest records software versions, status, and source SHA-256 hashes.
 
-连续小规模测试仅在两个候选 W 中比较，不能替代六窗口完整网格的结论。
-离散完整网格的全方法、全窗口共同中心仅有 6 个，相关共同中心统计需要谨慎解释。
-以上数值依赖当前环境；依赖版本、运行状态、源码 SHA-256 随运行保存在 `run_manifest.json`。
-
-## 复核命令
+## Reproduce
 
 ```bash
 python -m unittest discover -s tests -v
@@ -43,6 +36,4 @@ python examples/validate_known_delays.py --simulation discrete --seeds 0 1 2
 python examples/validate_known_delays.py --simulation continuous --smoke
 ```
 
-数值表、逐点轨迹及图像会写入新的本地结果目录，未将大型运行产物纳入 Git。
-这些是有限条件下的描述性验证，不是独立样本推断、普遍最优证明或真实神经数据有效性证明。
-连续模拟的原始真值时间轴约定等限制见 [完整说明](known_delay_validation.md)。
+Tables, traces, and figures are written to fresh local output directories. The results describe the tested signals and seeds. See the [validation guide](known_delay_validation.md) for timing conventions and interpretation.

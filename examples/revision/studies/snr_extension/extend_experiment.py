@@ -234,65 +234,51 @@ def report(s,contr,df,null):
     table.insert(1,'true_delay_ms',table.pop('delay_samples')/32)
     table=table.sort_values(['noise','true_delay_ms','snr_db'],ascending=[True,True,False]);table.to_csv(ROOT/'results/key_table.csv',index=False)
     nullsum=null.groupby('noise').agg(n=('mean_abs_ms','size'),mean_abs_ms=('mean_abs_ms','mean'),mean_signed_ms=('mean_signed_ms','mean'),record_sd_abs_ms=('mean_abs_ms','std')).reset_index();nullsum.to_csv(ROOT/'results/noise_only_summary.csv',index=False)
-    resulttext='\n'.join(f"{row.noise}：平均绝对估计值 {row.mean_abs_ms:.3f} ms，有符号均值 {row.mean_signed_ms:.3f} ms。" for row in nullsum.itertuples())
+    resulttext='\n'.join(f"{row.noise} noise gave a mean absolute estimate of {row.mean_abs_ms:.3f} ms and a mean signed estimate of {row.mean_signed_ms:.3f} ms." for row in nullsum.itertuples())
     endpoint=table[table.snr_db==-20]
     meta=pd.read_csv(ROOT/'provenance/template_manifest.csv')
-    outline=f'''NeuroTD：新增噪声SNR与估计延迟大小——扩展实验
-完成时间：{time.strftime('%Y-%m-%d %H:%M:%S')}
+    outline=f'''Added-noise SNR and estimated delay magnitude
+Completed {time.strftime('%Y-%m-%d %H:%M:%S')}
 
-本轮完成253,440组加噪信号对、288组无新增噪声基准、400组独立噪声对照。使用36个固定模板，来自同一名受试者的3个会话、9个无伪迹且正确试次。原项目、E、原窗口参数均未修改。
+Design
+The extended experiment used 36 fixed templates from nine artifact-free, correct trials across three sessions of one participant. It produced 253,440 noisy signal pairs, 288 no-added-noise baselines, and 400 independent noise-only controls. With the generating shift and template held fixed, we measured how reducing added-noise SNR changed estimated magnitude and RMSE.
+The first, middle, and last eligible trial in each session supplied the first channel of each of four electrode bundles. All templates spanned 1–2 s after trial onset for a duration of one second. This interval alone does not establish matching task phases across sessions.
+Generating shifts were -10, -2.5, 0, 2.5, 5, 7.5, 10, and 12.5 ms. Added-noise SNR levels were 20, 15, 10, 5, 0, -2.5, -5, -7.5, -10, -15, and -20 dB. We added white or AR(1) noise (rho=0.95) to y only or independently to x and y. Each condition used 20 realizations. The same standardized innovations were reused across SNR levels for paired comparisons.
+SNR was 10 log10(template mean-square power / added-noise mean-square power). A recorded template contains background noise shared by its shifted copies. Gain and shared structure were held fixed.
+The 32,000 Hz signals used the original rectangular window (W=1001), hop of 500, and bounds of ±500 samples (±15.625 ms). Linear FFT convolution accelerates the same local MSE search. All 132 full-record comparisons in the benchmark and production checks required agreement with the original window estimates.
 
-研究问题
-固定真实延迟和同一段波形，逐渐降低新增噪声SNR，估计的平均绝对延迟会变大还是变小？同时检查RMSE，避免将数值变小误认为更准确。
-
-实验设计
-每会话选择无伪迹且正确试次列表的首个、中间和最后一个试次，每个试次分别取四个电极束的第一通道，共36段1秒模板。片段统一为试次内1–2秒；不同会话的阶段标签并未据此认定一致。生成延迟为-10、-2.5、0、2.5、5、7.5、10、12.5 ms。
-SNR为20、15、10、5、0、-2.5、-5、-7.5、-10、-15、-20 dB；白噪声或AR(1)噪声（rho=0.95）；仅y加噪或x、y分别加独立噪声；每条件20次噪声实现。相同标准化噪声跨SNR配对，减小不同随机噪声造成的比较波动。
-SNR=10log10(固定模板均方功率/新增噪声均方功率)。固定模板本来来自真实记录，所以这不是原始脑区的生理SNR。未引入幅度增益差异，也未改变信号共同结构。
-估计器W=1001、hop=500、矩形窗、搜索±500采样点即±15.625 ms，采样率32000 Hz。目标函数、符号和候选搜索与原函数相同；只使用先前已验证的线性FFT计算交叉项。基准和生产结果累计132次整段逐窗核对，必须与原函数完全一致后才输出完成状态。
-
-结果如何阅读
-“延迟大小”指先对每个窗口估计值取绝对值，再在记录内平均；不是先求有符号平均再取绝对值。每个汇总点平均36个模板、每模板20次噪声实现，共720个构造信号对。
-无新增噪声基准最大RMSE：{bmax:.6g} ms。所有基准均保留，不因结果不好而删模板。
-
-强噪声端点（-20 dB，双通道独立加噪）：
+Results
+Absolute delay is computed per window, then averaged within the record. Each condition averages 720 pairs (36 templates x 20 realizations). The largest baseline RMSE was {bmax:.6g} ms. All templates were retained.
+At -20 dB with independent noise on both channels:
 {endpoint.to_string(index=False,float_format=lambda x:f'{x:.3f}')}
-
-没有共同模板、只有两路独立噪声的对照（不存在真实事件延迟，不能计算“真实延迟误差”）：
+Two independent noise channels share no event with a defined true delay. The estimated magnitudes and signed estimates in these controls were:
 {resulttext}
 
-解释原则
-1. 应检查每条固定真实延迟曲线，不能混合不同真值做一个总体SNR—延迟相关系数。
-2. 正的有符号估计和负的有符号估计可能相互抵消，但它们的绝对值不会抵消。噪声使估计变分散时，有符号均值接近零并不意味着平均绝对延迟接近零。
-3. 低SNR下的估计受有限搜索范围、模板、噪声颜色和受噪通道数影响。噪声对照的均值是本设置的经验结果，不是理论上通用的噪声延迟值。不能外推到任意搜索范围。
-4. 本轮不测量真实海马SNR，也不检验海马—其他脑区差异是否经SNR调整后仍存在。不得将加噪实验写成已经排除海马噪声混杂。
+Interpretation and uncertainty
+Compare SNR within each true shift. Signed errors of opposite signs can cancel while the mean absolute delay remains large. At low SNR the estimates depend on template, noise spectrum, noisy channels, and the finite search range. The noise-only controls describe the estimator under these settings. This experiment does not estimate physiological hippocampal SNR or a regional effect adjusted for SNR.
+Shaded regions show the interquartile range of the 36 template means. The conditional_mc_se_ms field measures Monte Carlo uncertainty from independent added noise on these fixed templates. Templates from the same trial share a participant and trial background. Between-participant uncertainty needs a separate design.
+The paired_contrasts.csv file compares each realization against 20 dB. The adjacent_snr_changes.csv file compares neighboring SNR levels. The prespecified 1 ms threshold for increases or decreases is descriptive.
 
-不确定性与比较
-图中的阴影为36个固定模板均值的四分位范围，不是95%置信区间。conditional_mc_se_ms只描述在这36段固定模板下重复生成独立新增噪声的Monte Carlo标准误；不包含受试者间不确定性。窗口没有作为独立生物样本。
-paired_contrasts.csv保存相同模板和噪声实现相对于20 dB的变化；adjacent_snr_changes.csv保存每两个相邻SNR水平的变化。增加/减少超过1 ms的比例采用运行前固定的描述性阈值，不是显著性检验。
+Figures
+1. Mean absolute delay versus SNR by true shift. A dotted black line shows the independent noise-only mean in two-channel panels.
+2. Mean estimated magnitude minus true magnitude. Red indicates overestimation and blue underestimation. A near-zero mean difference can mask individual errors.
+3. RMSE relative to the generating delay.
+4. Mean signed delay for positive and negative shifts. Compare with Figure 1 to see the effect of taking absolute values.
+5. Fractions of matched records with an increase, a decrease, or a change within 1 ms between 20 and -20 dB.
 
-图表
-图01：不同真实延迟下，平均估计绝对延迟随SNR的曲线；黑点线为独立噪声对照的均值，仅在双通道面板展示。
-图02：平均绝对估计值减真实绝对延迟。红色为幅度偏大，蓝色为偏小；白色不代表每个估计都准确。
-图03：真实延迟RMSE。用于确认幅度下降是否同时伴随准确性恶化。
-图04：有符号平均延迟，包含负延迟条件；与图01共同说明取绝对值的影响。
-图05：从20 dB降到-20 dB时，每条配对记录增加、减少或变化不超过1 ms的比例。
-
-范围与复现
-本轮是原范围内一名受试者的固定模板实验，不是36名受试者，也不是独立验证的生物学总体。模板来自9个试次，同一试次的多个通道并非生物学独立重复。
-plan.json保存运行前方案。provenance/保存原始文件校验、模板身份和代码哈希；checkpoints/保存所有逐窗口有符号估计；results/保存完整结果与验证表。
-运行命令：neurotd312环境中依次运行extend_experiment.py prepare、extend_experiment.py run。已有模板批次可恢复；改变方案时必须使用新目录，避免混用检查点。
+Reproduction
+The 36 templates come from nine trials in one participant. The design is in plan.json. Provenance records contain source checksums, template identities, and code hashes. Checkpoints contain signed window estimates, and results contains numerical outputs and validation tables. Run extend_experiment.py prepare followed by extend_experiment.py run in the study workspace. Completed template batches can be resumed. Use a fresh workspace if the design changes.
 '''
-    (ROOT/'结果说明.txt').write_text(outline)
+    (ROOT/'results_summary.txt').write_text(outline)
     def pic(name):
         b=base64.b64encode((ROOT/f'figures/{name}.png').read_bytes()).decode();return f'<img src="data:image/png;base64,{b}">'
-    pieces=['<h1>SNR降低，估计延迟一定变大吗？</h1><p class="lead">NeuroTD 加噪扩展实验 · 36个固定模板 · 253,440组加噪信号对</p>',
-            '<p class="note">此处SNR指人为新增噪声的强度。它不能替代对海马原始记录SNR的测量。</p>']
-    for heading,name in [('一、关系曲线','01_snr_delay_curves'),('二、何时高估，何时低估','02_inflation_deflation_map'),('三、数值变化与估计误差','03_delay_error'),('四、有符号延迟','04_signed_estimates'),('五、逐次配对变化','05_increase_decrease_fractions')]:
+    pieces=['<h1>How does lower SNR affect estimated delay magnitude?</h1><p class="lead">NeuroTD noise-injection study · 36 fixed templates · 253,440 noisy signal pairs</p>',
+            '<p class="note">SNR measures noise added to a fixed template. Physiological SNR in the original hippocampal recordings is unknown.</p>']
+    for heading,name in [('Delay magnitude versus SNR','01_snr_delay_curves'),('Overestimation and underestimation','02_inflation_deflation_map'),('Delay estimation error','03_delay_error'),('Signed delay','04_signed_estimates'),('Changes within paired records','05_increase_decrease_fractions')]:
         pieces.extend([f'<h2>{heading}</h2>',pic(name)])
-    pieces.extend(['<h2>关键数值表：双通道独立加噪</h2>',table.to_html(index=False,float_format=lambda x:f'{x:.3f}',border=0),'<h2>方法、解释与适用边界</h2><div class="full">'+html.escape(outline).replace('\n','<br>')+'</div>'])
-    htmlpage='<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NeuroTD SNR扩展实验</title><style>body{max-width:1150px;margin:40px auto;padding:0 24px;color:#24364b;font-family:-apple-system,"PingFang SC",sans-serif;line-height:1.7}h1{font-size:32px}h2{padding-top:25px;border-bottom:2px solid #c9dbe7}.lead{color:#57728a}.note{background:#fff6e8;border-left:4px solid #dd9944;padding:16px}img{max-width:100%}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px;text-align:right;border-bottom:1px solid #ddd}th{background:#e6eef5}tr:nth-child(even){background:#f8fafb}.full{font-size:14px;overflow-wrap:anywhere}</style><body>'+''.join(pieces)+'</body></html>'
-    (ROOT/'扩展实验报告.html').write_text(htmlpage)
+    pieces.extend(['<h2>Independent noise on both channels</h2>',table.to_html(index=False,float_format=lambda x:f'{x:.3f}',border=0),'<h2>Methods and interpretation</h2><div class="full">'+html.escape(outline).replace('\n','<br>')+'</div>'])
+    htmlpage='<!doctype html><html lang="en"><meta charset="utf-8"><title>Extended NeuroTD noise experiment</title><style>body{max-width:1150px;margin:40px auto;padding:0 24px;color:#24364b;font-family:-apple-system,sans-serif;line-height:1.7}h1{font-size:32px}h2{padding-top:25px;border-bottom:2px solid #c9dbe7}.lead{color:#57728a}.note{background:#fff6e8;border-left:4px solid #dd9944;padding:16px}img{max-width:100%}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px;text-align:right;border-bottom:1px solid #ddd}th{background:#e6eef5}tr:nth-child(even){background:#f8fafb}.full{font-size:14px;overflow-wrap:anywhere}</style><body>'+''.join(pieces)+'</body></html>'
+    (ROOT/'extended_report.html').write_text(htmlpage)
 
 def run():
     start=time.time();templates=dict(np.load(ROOT/'checkpoints/templates.npz'));done=0

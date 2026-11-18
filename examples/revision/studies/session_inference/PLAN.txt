@@ -46,11 +46,11 @@ Pilot: stage=99, 1,000 records per legacy scenario, no formal inference from pil
 One worker; BLAS one thread; preserve competing jobs. Checkpoints at scenario granularity.
 Audit hashes input and legacy inference/generator and original estimator before/after.
 Primary delivery: evidence-based resolution, including null/limited findings as needed,
-Chinese analysis, bilingual response and manuscript replacement text in standalone files.
+analysis, reviewer response and manuscript replacement text in separate files. The packaged entry writes them in English.
 No automatic edit to manuscript or connected response document.
 If all methods remain conditional/unsupported, explicitly withdraw original Welch inference;
 do not report an invented universal effective sample size or guarantee significance.
 
 References: Ibragimov & Muller (2010), doi:10.1198/jbes.2009.08046,
 https://www.princeton.edu/~umueller/tstat.pdf (session t assumptions only).
-Legacy generators and infer.py are copied byte-for-byte, with provenance, not modified.
+The original analysis used byte-identical copies of the legacy generators and infer.py. The packaged generators have English labels; the source manifest records their provenance.

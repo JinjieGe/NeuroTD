@@ -1,4 +1,4 @@
-"""Whole-recording Monte Carlo inference and local bilingual draft outputs."""
+"""Whole-recording Monte Carlo inference and English reports."""
 from pathlib import Path
 import csv
 import hashlib
@@ -186,55 +186,49 @@ def write_prose(out,conf,facts,summaries,desc):
     table='| Model | Noise SD | AR rho | False positive rate | Power | Mean null RMSE (ms) |\n|---|---:|---:|---|---|---:|\n'+'\n'.join(lines)
     fprs=[r for r in summaries if r['primary'] and r['endpoint']=='false_positive_rate']
     inconsistent=[r for r in fprs if r['ci95_low']>.05 or r['ci95_high']<.05]
-    interp=(f'{len(inconsistent)} 个主要条件的条件性二项区间不包含 5%，需要结合有限校准集的不确定性解释，不能宣称所有条件都已精确控制在 5%。'
-        if inconsistent else '所有主要条件的条件性二项区间均包含 5%。这与名义水平相容，但不是精确等于 5% 的证明。')
-    report=f'''# NeuroTD 2.4.3 补充模拟结果
+    interp = (f"The conditional binomial intervals excluded 5% in {len(inconsistent)} primary conditions."
+              if inconsistent else "The conditional binomial intervals included 5% in every primary condition.")
+    report=f'''# Fixed-window delay dynamics under a constant-delay null
 
-本实验直接检验恒定真实延迟下的表观动态，以及整条曲线的零模型校准。原估计器、E、搜索范围、权重计算和重建公式均保留，原项目未修改。模拟完成 {facts['independent_signal_pairs']} 对独立噪声信号，每对派生八种步长与重建配置。这些派生配置是配对分析，不是额外独立重复。
+The original estimator, alignment score E, search range, weights and reconstruction formula were used throughout. Each of {facts['independent_signal_pairs']} independently generated noisy signal pairs was analyzed under eight paired hop and reconstruction settings.
 
-## 主要结果
+## Primary results
 
 {table}
 
-{interp}
+{interp} These intervals condition on one finite calibration library.
 
-零噪声恒定延迟对照的最大曲线方差为 {facts['noiseless_constant_max_T_ms2']:.4g} ms²。该对照验证所测试波形、延迟网格和搜索范围下的常量恢复，不证明所有信号都具有唯一可辨识延迟。
+The maximum noiseless constant-delay curve variance was {facts['noiseless_constant_max_T_ms2']:.4g} ms². This checks recovery of a constant delay under the tested waveforms, delay grid and search bounds. Other signals may admit multiple equally good matches.
 
-## 基准和方法
+## Design and verification
 
-重新核算 2.4.1 已保存的 24 个基准配置的 E 与延迟 RMSE，并与原项目 CSV 比较。正式实验前又直接调用原估计器核对两种模型、两个噪声水平下的 W=513 结果，以及四种步长的原始估计和重建；全部数值逐项一致。每次完整模拟独立核算 E，最大绝对差为 {facts['E_audit_max_abs_diff']:.4g}。
+For the 24 benchmarks from 2.4.1, recomputed E and delay RMSE were compared with the original CSV. Before the full experiment, both signal models and two noise levels were checked at W=513 against direct estimator calls. Raw shifts and reconstructions at all four hops matched point by point. Across full runs, the maximum absolute difference in the independent E check was {facts['E_audit_max_abs_diff']:.4g}.
 
-固定 W=513，fs=5120 Hz，记录长度 1 秒。步长 H=1、128、256、513，名义重叠约为 99.8%、75.0%、50.1%、0%。离散波形使用原矩形权重，连续波形使用原 Hann 权重。主要配置为离散 H=256 的原始逐窗估计和连续 H=1 的重建估计，分别对应原脚本模式。本实验没有更改最小 E 选窗规则，也没有运行该规则；所有统计结论明确以预先固定 W=513 为条件，不能自动推广到数据驱动选窗后的输出。
+All signals lasted 1 s at 5120 Hz. The window size was fixed at W=513. Hops of 1, 128, 256 and 513 samples gave nominal overlaps of 99.8%, 75.0%, 50.1% and 0%. The primary discrete configuration used rectangular weights, H=256 and raw shifts. The primary continuous configuration used Hann weights, H=1 and overlap-add reconstruction. Minimum-E window selection was outside this fixed-window calibration.
 
-恒定延迟为离散 12 个采样点、连续 0 个采样点。使用原模型的干净参考波形，零模型的 y 是 x 的精确周期平移。动态阳性对照使用原模拟的干净 y 和原真值定义。白噪声标准差为 0.02、0.10、0.20；另在连续模型 SD=0.02 下加入平稳 AR(1) 噪声 rho=0.8，边际标准差仍为 0.02。x 与 y 的噪声过程独立。
+Constant delays were 12 samples for the discrete model and 0 samples for the continuous model. The null y was an exact circular shift of its clean reference x. The dynamic positive controls used the original clean y and original generating delays. Independent white noise was added to x and y with SD 0.02, 0.10 or 0.20. A further continuous-model condition used independent stationary AR(1) noise with rho=0.8 and marginal SD 0.02.
 
-每个条件有 199 次恒定延迟校准、200 次独立恒定延迟测试和 200 次独立动态测试。主统计量 T 为一次分析返回的延迟曲线在其原始中心网格上的方差，单位 ms²。p=(1+校准 T 大于等于观测 T 的次数)/200，在 p≤0.05 时拒绝恒定延迟零模型。完整记录是统计单位，保留记录内部的窗口重叠和噪声相关性。并列统计量保守处理。八个配置的 max(T) 另行作为一个整体统计量校准，不能把八个未校正 p 值择优报告为显著。
+Each condition used 199 constant-delay calibration pairs, 200 independent constant-delay test pairs and 200 independent dynamic test pairs. T is the temporal variance of the estimated delay on its native output centers (ms²). The Monte Carlo p-value is (1 + number of calibration T values at least as large as the test T)/200. The null is rejected at p ≤ 0.05. Whole records retain within-record dependence and ties count in the numerator. The maximum T across all eight settings was calibrated separately.
 
-## 如何解释步长与重建
+## Hop and reconstruction
 
-同一 x、y、W 和权重下，相同中心的原始延迟估计不随步长改变。本实验调用原函数计算 H=1 的全部原始窗口，其他步长复用完全相同的中心子集，避免重复搜索。与直接原函数调用的核对证明这种缓存不改变结果。原始曲线在不同步长下的方差变化还包含中心采样数量和位置变化，不能全部归因于重叠。
+A fixed center with the same data, weights and W yields the same raw local estimate for every hop. Centers for larger hops were drawn from the full H=1 grid. Direct calls verified this reuse. Hop changes the number and placement of sampled centers, so differences in variance also reflect sampling. Normalized overlap-add retains the original boundary weights. Reconstruction variability on the common valid interval is reported separately from the native-grid statistic. The common grid excludes zero-weight Hann endpoints.
 
-重建使用原归一化重叠相加公式，保留其边界权重。除原函数返回中心的方差外，汇总表另提供各步长共同有效时间区间上的重建方差。后者只是诊断，不替换原估计器输出。无重叠 Hann 窗端点没有正权重，公共网格明确剔除这些点，没有把它们当作零延迟。
+## Interpretation
 
-## 统计边界与论文回复
+The Clopper–Pearson intervals condition on the sampled library of 199 calibration records. They omit variation from sampling a new calibration threshold. The p-value resolution is 0.005. These tests characterize specified clean waveforms and known null parameters. Testing a real recording with unknown lag and noise would require a corresponding reference model. Inference following selection or filtering would also require reproducing those steps on the null data.
 
-表中区间是给定本次校准集合后的 Clopper–Pearson 二项区间，不包含重新抽取 199 条校准记录时的阈值不确定性。有限校准分辨率为 0.005。零模型参数已知，干净波形固定，因此这是模型条件下的方法校准，不是从真实记录估计未知固定延迟和噪声结构后的通用检验。
+Delay RMSE and bias accompany the variance. A flat estimate can have a large delay error, and a failure to detect dynamics does not establish a constant delay. The continuous model uses the original forward generating delay, Δ(t). Window-level between-group Welch comparisons are a separate analysis.
 
-RMSE 与偏差和曲线方差一并保留。曲线很平不代表延迟估计正确，低检出率也不能被描述为真实延迟恒定。源代码连续真值约定沿用原生成延迟 Δ(t)，没有私自改成逆时间映射。
+Leonardi and Van De Ville showed that mismatched window and signal timescales can produce apparent fluctuations in sliding correlations. The direction of a hop effect in NeuroTD requires direct measurement. See Leonardi and Van De Ville, NeuroImage 104 (2015), 430–436, https://doi.org/10.1016/j.neuroimage.2014.09.007.
 
-这些结果不能证明真实神经记录中的变化全部是生理变化，不能代替 2.4.2 的真实数据组间检验，也不能把文中窗口级 Welch 检验称为已校正。若最终展示曲线经过选窗、筛选或其他选择，这些步骤必须在对应零模拟中完整重跑后才能作正式推断。
+## Figures and output
 
-Leonardi 与 Van De Ville 的滑动相关研究提示窗长与信号时间尺度失配可产生伪动态；它不直接证明任何重叠比例都会增加 NeuroTD 的曲线方差。回复应承认窗口化和噪声可能造成表观变化，再呈现本方法的直接对照，避免声称已普遍排除伪影。
+Figure 1 gives held-out false-positive rates and power with conditional 95% binomial intervals. Figure 2 gives mean apparent variance under the null, separately for raw and reconstructed curves. Figure 3 shows prespecified replicate 0. Figure 4 gives mean delay RMSE at the original default mode and fixed W.
 
-参考：Leonardi N, Van De Ville D. On spurious and real fluctuations of dynamic functional connectivity during rest. NeuroImage 104 (2015), 430–436. https://doi.org/10.1016/j.neuroimage.2014.09.007
-
-## 图和数据
-
-图 1：独立测试集的误报率和检出率。误差线是条件性 95% 二项区间。图 2：恒定延迟下的平均表观方差，原始与重建曲线分别显示。图 3：预先规定的第 0 次重复，不按视觉效果选择。图 4：默认模式在固定窗长下的平均延迟 RMSE。
-
-test_summary.csv 为主要及敏感性检验汇总；whole_curve_tests.csv 保留每条测试记录的 p 值；delay_and_E_summary.csv 同时报告方差、RMSE、偏差及原 E；repeat_metrics.csv 保留全部配对配置。随机种子、未汇总曲线和源文件校验值在独立实验目录中留存。
+test_summary.csv lists primary and sensitivity tests. whole_curve_tests.csv stores record-level p-values. delay_and_E_summary.csv includes variance, RMSE, bias and E. repeat_metrics.csv retains all paired configurations. The run directory contains random seeds, unaggregated curves and source checksums.
 '''
-    (out/'analysis_zh.md').write_text(report)
+    (out/'analysis.md').write_text(report)
     methods='''We evaluated apparent delay dynamics using a prespecified fixed window of 513 samples at 5120 Hz. We retained the original weighted-MSE estimator, candidate lag range, alignment score E and normalized overlap-add reconstruction. We compared hops of 1, 128, 256 and 513 samples, both before and after reconstruction. The default-mode primary configurations were rectangular weights with hop 256 and raw estimates for the discrete model, and Hann weights with hop 1 and reconstructed estimates for the continuous model. No data-driven window selection was performed in this fixed-window experiment.
 
 For each tested signal/noise condition, we generated 199 constant-delay calibration records, 200 independent constant-delay test records and 200 independent records from the original time-varying-delay model. Constant lags were 12 samples for the discrete waveform and zero for the continuous waveform. We tested independent Gaussian noise with SD 0.02, 0.10 and 0.20 in both models, plus stationary AR(1) noise with rho=0.8 and marginal SD=0.02 in the continuous model. The statistic was the temporal variance of the estimated delay on the estimator's native output centers. Monte Carlo p-values were (1 + number of calibration statistics at least as large as the test statistic)/200. We tested at alpha=0.05, treating an entire recording as the inferential unit and retaining all within-record dependence. We separately calibrated the maximum statistic across the eight hop/reconstruction configurations. Exact 95% binomial intervals for held-out rejection rates are conditional on the realized calibration set.
@@ -255,24 +249,5 @@ These results characterize false-positive rates and detection power under the te
 
 References to revised manuscript locations and final figure/table numbers should be added only after these additions have actually been adopted. The manuscript and external documents have not been edited by this local analysis.
 '''
-    zh=f'''# Reviewer 2.4.3 中文回复草稿
-
-感谢审稿人指出窗口化可能造成表观动态。我们同意，仅凭估计延迟曲线随时间波动，不能认定真实神经延迟发生了变化。Leonardi 与 Van De Ville 关于滑动相关的发现提示有必要对 NeuroTD 作直接检验，而不能预先假定所有估计器都会因重叠而增加波动。
-
-我们保留原加权 MSE 延迟估计器、候选延迟范围、E 和归一化重叠重建方式，在预先固定 W=513、采样率5120 Hz 下比较 H=1、128、256、513，并分别检查重建前后的曲线。离散模型的主要配置为矩形权重、H=256、不重建；连续模型为 Hann 权重、H=1、原重建，均对应原脚本的运行模式。本项固定窗实验不进行数据驱动选窗。
-
-每个信号与噪声条件使用199次恒定延迟模拟校准、200次独立恒定延迟模拟评估误报率，以及200次原动态延迟模型模拟评估检出率。两种模型均测试标准差0.02、0.10、0.20的独立高斯噪声，另在连续模型中测试 rho=0.8、边际标准差0.02的平稳 AR(1) 噪声。统计单位是整条记录，统计量为原输出中心上的延迟方差。Monte Carlo p=(1+校准统计量不小于观测值的次数)/200，在0.05水平检验，保留整条记录中的窗口依赖。另对八个配置的最大统计量整体校准，避免从多个未校正结果中选择显著者。
-
-原默认模式在固定窗长下的独立测试结果如下：
-
-{table}
-
-零噪声恒定延迟对照恢复了常量曲线。固定信号、窗口、权重及中心位置时，改变步长不改变该中心的原始局部估计；步长会改变采样位置及依赖结构，重叠重建还会进一步改变输出曲线。因此，我们将原输出网格上的波动与共同有效时间区间上的重建诊断分开报告，并同时给出 RMSE 和偏差，不把平稳但错误的估计作为成功恢复。误报率与检出率区间是给定本次校准集合后的95%二项区间，不包含校准阈值自身的重复抽样不确定性。
-
-本实验支持的是已知信号与噪声模型、固定窗长及每种波形一个恒定延迟值下的条件性校准，不能证明真实记录中的所有变化都是神经状态变化，也不是针对真实数据未知恒定延迟的一般性检验。若曲线经过数据驱动选窗，必须在每条零模拟中重跑选窗流程后再作推断。真实数据未完成匹配的记录级零模型校准前，我们将其延迟曲线解释为描述性结果。这项分析不替代窗口级组间 Welch 检验的校正。
-
-实际采用以上补充后再填写修订稿章节、页码和图表编号。本地模拟没有修改论文正文或外部文档。
-'''
     (out/'response_en.md').write_text(en)
-    (out/'response_zh.md').write_text(zh)
     (out/'methods_en.md').write_text('# Proposed methods addition\n\n'+methods)

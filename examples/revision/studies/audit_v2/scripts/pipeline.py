@@ -30,9 +30,9 @@ import genmodels as G  # noqa: E402
 from progress import RateTracker, Reporter, fmt_hms, peak_rss_mb  # noqa: E402
 
 STAGES = [
-    ("s1", "输入及旧结果核验"), ("s2", "电极元数据核验"), ("s3", "原始波形质量检查"),
-    ("s4", "生成模型与程序验证"), ("s5", "校准模拟"), ("s6", "独立验证"),
-    ("s7", "真实数据重新检验"), ("s8", "绘图、报告及完整性检查"),
+    ("s1", "Verify inputs and earlier results"), ("s2", "Verify electrode metadata"), ("s3", "Check raw waveforms"),
+    ("s4", "Validate simulation generators and implementation"), ("s5", "Calibration simulations"), ("s6", "Independent validation"),
+    ("s7", "Retest recorded data"), ("s8", "Generate figures and reports and check completeness"),
 ]
 REP: Reporter | None = None
 ANA = I.analytic_method_names()
@@ -215,7 +215,7 @@ def stage_s1():
     env["git"] = "not a git repository; COMMIT UNKNOWN (provenance by SHA-256)"
     (LOGS / "environment.json").write_text(json.dumps(env, indent=2, ensure_ascii=False))
     REP.line(f"Python {sys.version.split()[0]} | numpy {env['numpy']} | scipy {env['scipy']} | pandas {env['pandas']} "
-             f"| pynwb {env['pynwb']} | 进程数 {N_WORKERS}，每进程 BLAS 线程 1")
+             f"| pynwb {env['pynwb']} | {N_WORKERS} processes, one BLAS thread per process")
 
     # --- NWB hashes vs. previous provenance
     prev = pd.read_csv(PREV / "tables/provenance_nwb_sha256.csv")
@@ -223,18 +223,18 @@ def stage_s1():
     for s, p in NWB.items():
         size = p.stat().st_size
         REP.set_task(f"SHA-256 {p.name}")
-        REP.set_progress(done=0, total=size, unit="字节")
+        REP.set_progress(done=0, total=size, unit="bytes")
         t0 = time.time()
         h = sha256_file(p, on_bytes=lambda d: REP.set_progress(done=d))
         old = prev[prev.session == f"ses-0{s}"].sha256.iloc[0]
         rows.append(dict(session=f"ses-0{s}", path=str(p.relative_to(ROOT)), bytes=size, sha256=h,
                          sha256_previous_round=old, match=h == old))
-        REP.line(f"NWB {p.name}: {size:,} 字节 | SHA-256 {h[:16]}… | 与上一轮一致：{h == old} | {time.time() - t0:.1f} s")
+        REP.line(f"NWB {p.name}: {size:,} bytes | SHA-256 {h[:16]}… | matches previous run: {h == old} | {time.time() - t0:.1f} s")
     REP.set_task(None)
     nwb = pd.DataFrame(rows)
     nwb.to_csv(TAB / "provenance_nwb_sha256.csv", index=False)
     if not nwb.match.all():
-        raise RuntimeError("NWB 哈希与上一轮不一致，不能复用延迟结果")
+        raise RuntimeError("NWB hashes differ from the earlier run. Its delay results cannot be reused.")
 
     # --- previous-round files
     files = ["checkpoints/windows_all_trials.npz", "tables/trial_region_summary.csv", "tables/trial_pair_summary.csv",
@@ -242,17 +242,21 @@ def stage_s1():
              "tables/electrode_mapping_all_32_channels.csv", "tables/provenance_nwb_sha256.csv",
              "tables/old_checkpoint_verification.csv", "tables/checkpoint_reestimation_consistency.csv",
              "synthetic_validation/synthetic_validation_results.csv", "scripts/pipeline.py", "scripts/stats_core.py",
-             "scripts/posthoc_electrode_composition.py", "REPORT_CN.md", "run.log", "timing_summary.csv"]
+             "scripts/posthoc_electrode_composition.py", "REPORT.md", "run.log", "timing_summary.csv"]
     man = []
     for f in files:
         p = PREV / f
-        man.append(dict(file=f, exists=p.exists(), bytes=p.stat().st_size if p.exists() else None,
+        if f == "REPORT.md" and not p.exists():
+            archived = PREV / "REPORT_CN.md"
+            if archived.exists():
+                p = archived
+        man.append(dict(file=str(p.relative_to(PREV)), exists=p.exists(), bytes=p.stat().st_size if p.exists() else None,
                         sha256=sha256_file(p) if p.exists() else None))
     pd.DataFrame(man).to_csv(TAB / "provenance_previous_round_files.csv", index=False)
-    REP.line(f"上一轮文件登记哈希：{sum(m['exists'] for m in man)}/{len(man)} 存在")
+    REP.line(f"Earlier files found in the hash inventory: {sum(m['exists'] for m in man)}/{len(man)}")
 
     # --- window array shape and S, N reconstruction
-    REP.set_task("读取 windows_all_trials.npz 并重算 S、N")
+    REP.set_task("Read windows_all_trials.npz and recompute S and N")
     z = np.load(PREV / "checkpoints/windows_all_trials.npz")
     Wv = z["shifts_samples"]
     sess = z["session"]
@@ -280,39 +284,39 @@ def stage_s1():
                   pair_mapping_identical_across_sessions=bool(same_map), n_pairs_per_region=pd.Series(reg).value_counts().to_dict(),
                   total_nonzero=int(nz.sum()))
     (TAB / "input_checks.json").write_text(json.dumps(checks, indent=2, ensure_ascii=False, default=str))
-    REP.line(f"窗口数组 {Wv.shape}（预期 150×60×508：{checks['shape_ok']}）| 由窗口重算 S 与汇总表最大差 {maxdiff:.2e} ms "
-             f"| N 不一致 {nd} | 三会话通道对映射相同 {same_map} | 非零窗口 {checks['total_nonzero']}")
+    REP.line(f"Window array {Wv.shape} (expected 150×60×508: {checks['shape_ok']}) | maximum difference between window-derived and archived S: {maxdiff:.2e} ms "
+             f"| N mismatches {nd} | same pair mapping across three sessions {same_map} | nonzero windows {checks['total_nonzero']}")
     if not checks["shape_ok"] or maxdiff > 1e-6 or nd:
-        raise RuntimeError("上一轮汇总表不能由窗口检查点还原")
-    REP.line("复用：9000 个试次×通道对、4,572,000 个窗口的延迟（已于上一轮从原始 NWB 抽样 96 对逐窗口复核）；本轮不重算延迟。")
+        raise RuntimeError("The window checkpoints do not reproduce the earlier summary table.")
+    REP.line("Reused delays for 9,000 trial-by-pair combinations (4,572,000 windows). The earlier analysis checked 96 combinations window by window against raw NWB data.")
 
     # --- previous-round errata
     bt = pd.read_csv(PREV / "tables/bootstrap_results_all_settings.csv")
     er = []
     lossB = bt[bt.bootstrap_B_used < bt.bootstrap_B]
     for r in lossB.itertuples():
-        er.append(dict(issue="有效重采样次数小于 B", analysis_variant=r.analysis_variant, session_scope=r.session_scope,
+        er.append(dict(issue="Fewer than B valid resamples", analysis_variant=r.analysis_variant, session_scope=r.session_scope,
                        comparison=f"{r.region_A} - {r.region_B}", block_length=r.block_length,
-                       detail=f"B={r.bootstrap_B}, 有效 {r.bootstrap_B_used}, 非有限 {r.n_nonfinite_resamples}"))
+                       detail=f"B={r.bootstrap_B}, valid {r.bootstrap_B_used}, nonfinite {r.n_nonfinite_resamples}"))
     mid = bt[(bt.adjusted_p >= 0.001) & (bt.adjusted_p < 0.05)]
     for r in mid.itertuples():
-        er.append(dict(issue="0.001 ≤ p_adj < 0.05（达不到 p<0.001）", analysis_variant=r.analysis_variant,
+        er.append(dict(issue="0.001 ≤ adjusted p < 0.05 (above the p<0.001 reporting threshold)", analysis_variant=r.analysis_variant,
                        session_scope=r.session_scope, comparison=f"{r.region_A} - {r.region_B}",
                        block_length=r.block_length, detail=f"p_adj={r.adjusted_p:.4g}, B={r.bootstrap_B_used}"))
     syn = pd.read_csv(PREV / "synthetic_validation/synthetic_validation_results.csv")
     for r in syn[syn.check.str.contains("AR")].itertuples():
-        er.append(dict(issue="校准结果被记为 passed=True", analysis_variant="synthetic", session_scope="-",
+        er.append(dict(issue="Calibration result incorrectly recorded as passed=True", analysis_variant="synthetic", session_scope="-",
                        comparison="-", block_length="1,5",
-                       detail=f"passed={r.passed}; {r.detail}。上一轮代码把这一项直接写成 True，"
-                              "它是误报率超标的证据，不是通过。"))
+                       detail=f"passed={r.passed}; {r.detail}. The earlier code hard-coded True, "
+                              "although the false-positive rate exceeded its threshold."))
     erdf = pd.DataFrame(er)
     erdf.to_csv(TAB / "previous_round_errata.csv", index=False)
-    REP.line(f"上一轮更正事项：有效 B 不足 {len(lossB)} 行；0.001≤p_adj<0.05 共 {len(mid)} 行；"
-             f"合成校准误记为通过 {int(syn.check.str.contains('AR').sum())} 项")
+    REP.line(f"Earlier corrections: {len(lossB)} rows with too few valid resamples, {len(mid)} rows with 0.001≤adjusted p<0.05, "
+             f"{int(syn.check.str.contains('AR').sum())} simulated calibration checks incorrectly marked as passing")
     save_state(prev_lossB_rows=len(lossB), prev_mid_p_rows=len(mid))
 
     # --- benchmarks for the time estimate
-    REP.line("基准测试（真实计时，用于开始时的耗时估计）")
+    REP.line("Timing benchmark for the initial runtime estimate")
     trs_df = trs
     P = G.estimate_params(trs_df)
     rng = np.random.default_rng(0)
@@ -350,23 +354,23 @@ def stage_s1():
         "E4_validation_analytic_s": n_combo * VAL_NSIM_ANA * t_ana / N_WORKERS,
         "E4_validation_bootstrap_s": n_combo * VAL_NSIM_BOOT * t_boot / N_WORKERS,
         "E5_realdata_s": 35 * t_boot * (REAL_B / BOOT_B) + 60 * t_boot * (ELEC_B / BOOT_B) / 4,
-        "E6_figures_report_s": "约 2–5 分钟（粗估，未基准测试）",
+        "E6_figures_report_s": "About 2–5 minutes (rough estimate without benchmarking)",
     }
     boot_total = est["E4_validation_bootstrap_s"]
     est["validation_bootstrap_nsim_rule"] = (
-        f"预计 {boot_total / 3600:.2f} h ≤ 6 h → 使用 {VAL_NSIM_BOOT}" if boot_total <= 6 * 3600 else
-        f"预计 {boot_total / 3600:.2f} h > 6 h → 按方案改用 {VAL_NSIM_BOOT_FALLBACK}")
+        f"Estimated {boot_total / 3600:.2f} h ≤ 6 h: use {VAL_NSIM_BOOT}" if boot_total <= 6 * 3600 else
+        f"Estimated {boot_total / 3600:.2f} h > 6 h: use the planned fallback {VAL_NSIM_BOOT_FALLBACK}")
     save_state(val_nsim_boot=VAL_NSIM_BOOT if boot_total <= 6 * 3600 else VAL_NSIM_BOOT_FALLBACK)
     (LOGS / "time_estimate_at_start.json").write_text(json.dumps(est, indent=2, ensure_ascii=False))
-    REP.line(f"  解析方法 {t_ana * 1e3:.3f} ms/次；bootstrap（8 个方法，B={BOOT_B}）{t_boot:.3f} s/次；"
-             f"参考分布 {t_ref:.2f} s/10 万次；读取一个试次 32 通道+宏电极 {t_read:.2f} s")
-    REP.line("开始时耗时估计（预计，6 进程）：")
-    REP.line(f"  电极及原始波形检查 ≈ {fmt_hms(est['E1_electrode_and_waveform_s'])}")
-    REP.line(f"  fixed-b 参考分布 ≈ {fmt_hms(est['E2a_fixedb_references_s'])}；生成模型核验+试点 ≈ {fmt_hms(est['E2b_truth_check_and_pilot_s'])}")
-    REP.line(f"  校准集 ≈ {fmt_hms(est['E3_calibration_s'])}")
-    REP.line(f"  独立验证：解析 ≈ {fmt_hms(est['E4_validation_analytic_s'])}；bootstrap ≈ {fmt_hms(boot_total)}"
-             f"（{est['validation_bootstrap_nsim_rule']}）")
-    REP.line(f"  真实数据检验 ≈ {fmt_hms(est['E5_realdata_s'])}；图表与报告 约 2–5 分钟")
+    REP.line(f"  Analytic methods {t_ana * 1e3:.3f} ms/draw, bootstrap (8 methods, B={BOOT_B}) {t_boot:.3f} s/draw, "
+             f"reference distribution {t_ref:.2f} s/100,000 draws, reading one trial (32 micro channels plus macro channels) {t_read:.2f} s")
+    REP.line("Initial estimated runtimes using six processes:")
+    REP.line(f"  Electrodes and waveforms: {fmt_hms(est['E1_electrode_and_waveform_s'])}")
+    REP.line(f"  Fixed-b reference: {fmt_hms(est['E2a_fixedb_references_s'])}, generator checks and pilot: {fmt_hms(est['E2b_truth_check_and_pilot_s'])}")
+    REP.line(f"  Calibration: {fmt_hms(est['E3_calibration_s'])}")
+    REP.line(f"  Independent validation: analytic {fmt_hms(est['E4_validation_analytic_s'])}, bootstrap {fmt_hms(boot_total)}"
+             f"({est['validation_bootstrap_nsim_rule']})")
+    REP.line(f"  Real-data tests: {fmt_hms(est['E5_realdata_s'])}, figures and report about 2–5 minutes")
 
 
 # ============================================================================ S2
@@ -387,7 +391,7 @@ def stage_s2():
     import h5py
     rows, macro_rows, series = [], [], []
     for s in (1, 2, 3):
-        REP.set_task(f"读取 {NWB[s].name} 电极表与 ElectricalSeries 属性")
+        REP.set_task(f"Read the electrode table and ElectricalSeries attributes from {NWB[s].name}")
         with h5py.File(NWB[s], "r") as f:
             e = f["general/extracellular_ephys/electrodes"]
             cols = {c: e[c][:] for c in ["id", "label", "location", "group_name", "x", "y", "z", "imp",
@@ -422,8 +426,8 @@ def stage_s2():
                 axis_doc_x=axis_doc["x"], axis_doc_y=axis_doc["y"], axis_doc_z=axis_doc["z"],
                 side_by_z_under_axis_doc=("Right" if z > 0 else "Left"),
                 mni_x_inferred=z, mni_y_inferred=-x, mni_z_inferred=-y,
-                coordinate_unit="未在 NWB 中声明；数据描述称接触点已归一化到 MNI 空间（推断为 mm，未确认）",
-                coordinate_system_evidence="NWB 轴说明（+x 后、+y 下、+z 右，与 NWB 模式默认说明相同）；数据描述：ACPC 对齐后归一化到 MNI，Brainnetome 分区",
+                coordinate_unit="NWB gives no units. The descriptor reports normalization to MNI space, suggesting millimetres, pending confirmation.",
+                coordinate_system_evidence="NWB default axes: +x posterior, +y inferior, +z right. The descriptor reports ACPC alignment followed by MNI normalization and Brainnetome parcellation.",
                 also_referenced_by_macro_ieeg=bool(ri in set(ieeg.tolist())),
                 signal_unit="volts", conversion=1.0, offset=0.0,
                 filtering=dec(cols["filtering"][ri]), reference=dec(cols["reference"][ri]),
@@ -443,7 +447,7 @@ def stage_s2():
     pd.DataFrame(series).to_csv(ELE / "electrical_series_attributes.csv", index=False)
     mac = pd.DataFrame(macro_rows)
     mac.to_csv(ELE / "macro_contacts_ses-01.csv", index=False)
-    REP.line(f"逐通道核验表：{len(ch)} 行（3 会话 × 32 通道）")
+    REP.line(f"Channel verification table: {len(ch)} rows (3 sessions × 32 channels)")
 
     # cross-session consistency
     key = ["waveform_column", "electrode_table_row", "label", "location", "x", "y", "z", "group_name", "filtering", "reference"]
@@ -501,48 +505,48 @@ def stage_s2():
         F.append(dict(id=fid, topic=topic, category=category, finding=finding, evidence=evidence, impact=impact))
 
     refs_rows = sorted(c1.electrode_table_row.tolist())
-    add("E1", "波形列到电极行的映射", "已确认",
-        f"32 个微电极波形列通过 ecephys.lfp/electrodes 引用电极表第 {refs_rows[0]}–{refs_rows[23]} 和 {refs_rows[24]}–{refs_rows[-1]} 行；不是电极表前 32 行（前 19 行是头皮 EEG）。三个会话相同：{consistent}。",
-        "NWB acquisition/ecephys.lfp/electrodes；general/extracellular_ephys/electrodes", "上一轮及原始分析的映射方式正确")
-    add("E2", "微电极与宏电极共用电极表行", "存在明确冲突",
-        "微电极序列（描述 'Micro iEEG data'，32 kHz）引用的 32 行，全部也被宏电极序列 ecephys.ieeg（'Macro iEEG data'，2 kHz，48 行）引用。电极表没有单独的微电极行。",
-        f"NWB 引用索引；数据描述：每根宏电极有 9 根微电极，从电极尖端伸出约 4 mm（{DESCRIPTOR_URL}）",
-        "微电极通道的 location、x/y/z 是同编号宏触点的元数据，不是微电极自身的位置")
-    add("E3", "微电极通道的脑区标签", "存在明确冲突",
-        "同一电极上的 8 个微电极通道被赋予沿电极杆分布的不同脑区（例如 AHL1–2 海马、AHL5 颞上回、AHL6–8 颞中回）；按数据描述，同一束微电极都位于该电极尖端附近（相距毫米级）。图 4c 的四个“脑区”正是由这些标签定义的。",
-        "电极表 location；宏触点间距（见 shaft_contact_spacing.csv）；数据描述 Recording setup 与 Fig. 2（电极尖端=微电极位置）",
-        "MTG、STG 以及部分 Amygdala、Hippocampus 微电极通道的脑区归属缺乏支持；区域比较实际上是不同触点组合的比较")
-    add("E4", "坐标单位与坐标系", "当前证据不足、需作者确认",
-        "x/y/z 没有单位属性；轴说明为 NWB 模式默认文字（+x 后、+y 下、+z 右）。按这一轴说明换算后（MNI_x=z, MNI_y=−x, MNI_z=−y），各电极 1 号触点的位置与其标注结构大致相符；相邻宏触点平均间距 "
-        f"{sp.mean_spacing.mean():.2f} 个单位（数据描述：触点中心间距 5 mm，归一化后可有缩放）。",
-        "NWB 属性；数据描述 Depth electrode localization", "距离可视为“近似毫米、MNI 归一化后”，不能作为个体解剖毫米；不据此判定标签错误")
-    add("E5", "AHL1、AHL2、PHR1（海马通道）", "存在明确冲突",
-        f"AHL1、AHL2 属于 AHL 电极（location：左侧海马，z<0 左侧）；PHR1 属于 PHR 电极（location：右侧海马，z>0 右侧）。海马 3 个通道对：AHL1–AHL2 同束同侧；AHL1–PHR1、AHL2–PHR1 跨半球跨电极。按数据描述，AHL3–AHL8 微电极与 AHL1、AHL2 同在 AHL 尖端，但被标为 unspecific/STG/MTG。",
-        "电极表；数据描述", "“海马”组只包含 3 个通道且 2/3 的通道对跨半球；结论依赖这一组合")
-    add("E6", "ECL 电极侧别", "存在明确冲突",
-        f"ECL1–ECL8 的 location 均写 Right（Amygdala/Insular/STG/MTG），但 z 全部 <0（按 NWB 轴说明为左侧；z 范围 {ecl.z.min():.1f} 到 {ecl.z.max():.1f}）；电极名 ECL 的末字母与左侧命名一致；受试者描述列出的深部电极为 {subj.split('Depth electrodes: ')[-1].splitlines()[0]}。",
-        "电极表 location 与 z；subject/description", "不能仅凭命名或坐标改侧别；ECL 参与的跨侧/同侧分类不可靠")
-    add("E7", "LR 电极侧别（只在宏电极数据中）", "存在明确冲突",
-        f"LR1–LR8 的 location 写 Left，但 z 全部 >0（{lr.z.min():.1f} 到 {lr.z.max():.1f}），与 ECL 的情况恰好相反；LR 不在本分析的微电极数据中。",
-        "电极表", "提示 location 字符串的侧别可能整体互换，需作者确认")
-    add("E8", "SOZ 记录", "当前证据不足、需作者确认",
-        "subject/description 写 'Electrodes in seizure onset zone (SOZ): AHR,LR'，但深部电极列表中没有 AHR；电极表 is_inside_soz 只对 LR 为真。",
-        "subject/description；电极表 is_inside_soz", "本分析的 4 根微电极束（AHL、AL、ECL、PHR）在表中都不在 SOZ；AHR 的含义需确认")
-    add("E9", "滤波说明", "存在明确冲突",
-        "电极表 filtering 对这些行写 'Passband, 0.5 to 1000 Hz'；数据描述称 ATLAS 记录通带 0.5–5000 Hz、微电极 32 kHz。微电极序列本身没有单独的滤波说明。",
-        "电极表 filtering；数据描述 Recording setup", "微电极信号的实际滤波未知；不影响延迟估计的再现，但影响信号解释")
-    add("E10", "参考方式", "已确认",
-        "电极表 reference 为 'Common intracranial reference'，与数据描述一致（所有通道对共同颅内参考）。",
-        "电极表；数据描述", "共同参考会在通道间引入共同成分，可能使近邻通道的零时差相关升高（见波形检查）")
-    add("E11", "信号单位、conversion、offset", "已确认",
-        "ecephys.lfp：unit=volts，conversion=1.0，offset=0.0，resolution=−1（未知），float64；时间戳给出 32 kHz。",
-        "NWB data 属性", "幅度量级在波形检查中复核")
-    add("E12", "三个会话的相同标签是否对应相同触点", "已确认（元数据层面）",
-        f"三个会话的电极表、引用索引、标签、location、坐标完全相同：{consistent}。物理同一性只能由元数据支持。",
-        "三个 NWB 文件逐字段比较", "会话间可按标签对应")
+    add("E1", "Mapping waveform columns to electrode rows", "confirmed",
+        f"The 32 microwire columns reference electrode rows {refs_rows[0]}–{refs_rows[23]} and {refs_rows[24]}–{refs_rows[-1]} through ecephys.lfp/electrodes. The first 19 table rows are scalp EEG. Same mapping across sessions: {consistent}.",
+        "NWB acquisition/ecephys.lfp/electrodes; general/extracellular_ephys/electrodes", "The original and preceding analyses used the correct row indices.")
+    add("E2", "Microwires and macroelectrodes reference the same table rows", "conflicting evidence",
+        "The 32 rows referenced by the 32 kHz Micro iEEG series also appear among the 48 rows referenced by the 2 kHz Macro iEEG series. The electrode table contains no separate microwire rows.",
+        f"NWB reference indices. The descriptor states that nine microwires extend about 4 mm from each macroelectrode tip ({DESCRIPTOR_URL}).",
+        "Microwire location and x/y/z values describe the correspondingly numbered macro contacts.")
+    add("E3", "Regional labels for microwires", "conflicting evidence",
+        "The eight microwires on one shaft have labels spanning several regions (e.g., AHL1–2 hippocampus, AHL5 STG, AHL6–8 MTG). According to the descriptor, the bundle sits within millimetres of the tip. Figure 4c defines its four regions using these labels.",
+        "Electrode location and macro-contact spacing (shaft_contact_spacing.csv). See Recording setup and Figure 2 in the dataset descriptor.",
+        "Regional assignments for MTG, STG and some amygdala and hippocampal microwires lack anatomical confirmation. Comparisons depend on contact composition.")
+    add("E4", "Coordinate units and reference frame", "insufficient evidence; author confirmation needed",
+        "The x/y/z fields lack units. The NWB axes use the standard descriptions (+x posterior, +y inferior, +z right). After conversion (MNI_x=z, MNI_y=−x, MNI_z=−y), first contacts approximately match their labelled structures. Adjacent macro contacts average "
+        f"{sp.mean_spacing.mean():.2f} units apart. The descriptor reports 5 mm centre-to-centre spacing before possible scaling by normalization.",
+        "NWB attributes and the descriptor's Depth electrode localization section", "Distances approximate millimetres after MNI normalization. Their interpretation in native anatomy and any label reassignment require independent confirmation.")
+    add("E5", "AHL1, AHL2 and PHR1 (hippocampal channels)", "conflicting evidence",
+        f"AHL1 and AHL2 lie on the AHL shaft (labelled left hippocampus, z<0), and PHR1 lies on PHR (right hippocampus, z>0). AHL1–AHL2 is ipsilateral within one bundle. AHL1–PHR1 and AHL2–PHR1 cross shafts and hemispheres. AHL3–AHL8 share the tip with AHL1 and AHL2 according to the descriptor, despite their unspecific/STG/MTG labels.",
+        "Electrode table and dataset descriptor", "This hippocampal group contains three channels. Two of its three pairs cross hemispheres, so the result depends on contact composition.")
+    add("E6", "Laterality of ECL", "conflicting evidence",
+        f"ECL1–ECL8 are labelled Right (amygdala/insula/STG/MTG), yet all have z<0 (left on the documented axes, {ecl.z.min():.1f} to {ecl.z.max():.1f}). The L suffix suggests left. The subject description lists these depth electrodes: {subj.split('Depth electrodes: ')[-1].splitlines()[0]}.",
+        "Electrode location and z fields, subject/description", "Naming and coordinates alone cannot establish laterality. Ipsilateral and contralateral classifications involving ECL remain uncertain.")
+    add("E7", "Laterality of LR (macro data only)", "conflicting evidence",
+        f"LR1–LR8 are labelled Left but all have z>0 ({lr.z.min():.1f} to {lr.z.max():.1f}), the reverse of ECL. LR does not enter this microwire analysis.",
+        "Electrode table", "The location strings may reverse laterality systematically. This requires author confirmation.")
+    add("E8", "Seizure-onset zone (SOZ) record", "insufficient evidence; author confirmation needed",
+        "Subject metadata list AHR and LR in the SOZ. The depth-electrode list omits AHR. The is_inside_soz field is true only for LR.",
+        "subject/description and electrode-table is_inside_soz", "The table marks all four analysed bundles (AHL, AL, ECL, PHR) as outside the SOZ. The identity of AHR is unresolved.")
+    add("E9", "Filter details", "conflicting evidence",
+        "The electrode table specifies a 0.5–1000 Hz passband. The descriptor reports a 0.5–5000 Hz ATLAS recording passband and 32 kHz microwire sampling. The micro series gives no separate filter specification.",
+        "Electrode-table filtering and the descriptor's Recording setup section", "The actual microwire filter is uncertain. It affects interpretation of the signals even when the delay estimates can be reproduced.")
+    add("E10", "Referencing scheme", "confirmed",
+        "The electrode table gives Common intracranial reference, consistent with the descriptor for all channels.",
+        "Electrode table and dataset descriptor", "A common reference can introduce shared components and increase zero-lag correlation between nearby channels (see waveform checks).")
+    add("E11", "Signal units, conversion and offset", "confirmed",
+        "ecephys.lfp: unit=volts, conversion=1.0, offset=0.0, resolution=−1 (unknown), float64. Timestamps indicate 32 kHz sampling.",
+        "NWB data attributes", "Waveform checks examine the amplitude scale.")
+    add("E12", "Contact identity across the three sessions", "confirmed in metadata",
+        f"Identical table rows, references, labels, locations and coordinates across sessions: {consistent}. Physical identity is supported by metadata alone.",
+        "Field-by-field comparison of the three NWB files", "Channels can be matched across sessions by label.")
     pd.DataFrame(F).to_csv(ELE / "electrode_findings.csv", index=False)
     for fdx in F:
-        REP.line(f"  [{fdx['id']}] {fdx['topic']}：{fdx['category']}")
+        REP.line(f"  [{fdx['id']}] {fdx['topic']}: {fdx['category']}")
     REP.set_task(None)
     save_state(electrode_tables_consistent=bool(consistent))
 
@@ -574,25 +578,25 @@ def stage_s3():
     pc = pd.read_csv(ELE / "pair_classification.csv")
     sel = []
     for r in pc[pc.zero_fraction_all_trials >= 0.70].itertuples():
-        sel.append((r.pair_index, "高零延迟（≥70%）"))
+        sel.append((r.pair_index, "High zero-delay fraction (≥70%)"))
     for r in pc[pc.region == "Hippocampus"].itertuples():
         if r.pair_index not in [s[0] for s in sel]:
-            sel.append((r.pair_index, "海马通道对"))
+            sel.append((r.pair_index, "Hippocampal pair"))
     for reg, g in pc.groupby("region"):
         g2 = g[g.zero_fraction_all_trials < 0.20]
         if len(g2):
             med = g2.zero_fraction_all_trials.median()
             k = int(g2.iloc[(g2.zero_fraction_all_trials - med).abs().argsort().iloc[0]].pair_index)
             if k not in [s[0] for s in sel]:
-                sel.append((k, "正常对照"))
+                sel.append((k, "Control pair"))
     selp = pc.set_index("pair_index").loc[[s[0] for s in sel]].reset_index()
     selp["selection_reason"] = [s[1] for s in sel]
     selp.to_csv(WQC / "selected_pairs.csv", index=False)
-    REP.line(f"按预定规则选取 {len(selp)} 个通道对：" + "; ".join(
+    REP.line(f"Selected {len(selp)} pairs using the prespecified rule: " + "; ".join(
         f"{r.label_i}–{r.label_j}({r.selection_reason})" for r in selp.itertuples()))
     trials = [0, 12, 24, 37, 49]
     tasks = [(s, t) for s in (1, 2, 3) for t in trials]
-    REP.set_progress(done=0, total=len(tasks), unit="试次")
+    REP.set_progress(done=0, total=len(tasks), unit="trials")
     sos_micro = butter(4, 200, fs=FS, output="sos")
     sos_macro = butter(4, 200, fs=2000, output="sos")
     ch = pd.read_csv(ELE / "channel_verification_table.csv")
@@ -606,7 +610,7 @@ def stage_s3():
     zw = np.load(PREV / "checkpoints/windows_all_trials.npz")["shifts_samples"]
     meta = pd.read_csv(PREV / "tables/trial_metadata.csv")
     for n_done, (s, t) in enumerate(tasks):
-        REP.set_task(f"ses-0{s} trial_pos={t}：读取 32 通道微电极与 48 通道宏电极")
+        REP.set_task(f"ses-0{s} trial_pos={t}: read 32 microwire and 48 macro channels")
         with h5py.File(NWB[s], "r") as f:
             blk = np.asarray(f["acquisition/ecephys.lfp/data"][t * TRIAL_LEN:(t + 1) * TRIAL_LEN, :], dtype=np.float64)
             ts_u = f["acquisition/ecephys.lfp/timestamps"][t * TRIAL_LEN:(t + 1) * TRIAL_LEN]
@@ -617,7 +621,7 @@ def stage_s3():
         align_rows.append(dict(session=f"ses-0{s}", trial_pos=t, micro_t0=float(ts_u[0]), macro_t0=float(ts_m[0]),
                                dt0_ms=1000 * float(ts_m[0] - ts_u[0]), micro_t_end=float(ts_u[-1]),
                                macro_t_end=float(ts_m[-1]), dt_end_ms=1000 * float(ts_m[-1] - ts_u[-1])))
-        REP.set_task(f"ses-0{s} trial_pos={t}：逐通道与逐通道对指标")
+        REP.set_task(f"ses-0{s} trial_pos={t}: channel and pair metrics")
         for c in range(32):
             x = blk[:, c]
             fr, mr = run_lengths_fraction(x)
@@ -655,8 +659,8 @@ def stage_s3():
         corr_uu += np.arctanh(np.clip(uz.T @ uz / n, -0.9999, 0.9999))
         del blk, mb, ul, ml
         REP.set_progress(done=n_done + 1)
-        REP.line(f"[原始波形质量检查] 会话 {s}/3 | 试次 {t} | 已完成 {n_done + 1}/{len(tasks)} 个试次 | "
-                 f"{rt.text(n_done + 1, len(tasks), '试次')}")
+        REP.line(f"[Raw waveform checks] session {s}/3 | trial {t} | {n_done + 1}/{len(tasks)} trials complete | "
+                 f"{rt.text(n_done + 1, len(tasks), 'trials')}")
     corr_mm = np.tanh(corr_mm / len(tasks))
     corr_uu = np.tanh(corr_uu / len(tasks))
     np.fill_diagonal(corr_uu, 1.0)
@@ -688,9 +692,9 @@ def stage_s3():
                       mean_r_across_bundle=float(corr_uu[~same_b].mean()),
                       n_micro_best_matches_contact1=int((best.best_macro_same_bundle.str[-1] == "1").sum()),
                       n_micro_best_matches_same_number=int((best.best_macro_same_bundle == best.micro_channel).sum()))
-    REP.line(f"微电极与宏电极（低通 200 Hz）：同束微电极平均 r={uu_summary['mean_r_within_bundle']:.3f}，跨束 "
-             f"{uu_summary['mean_r_across_bundle']:.3f}；32 个微电极通道中最相关宏触点为同束 1 号触点的 "
-             f"{uu_summary['n_micro_best_matches_contact1']} 个，为同编号触点的 {uu_summary['n_micro_best_matches_same_number']} 个")
+    REP.line(f"Microwire vs macro contacts (200 Hz low-pass): mean within-bundle micro–micro r={uu_summary['mean_r_within_bundle']:.3f}, across bundles "
+             f"{uu_summary['mean_r_across_bundle']:.3f}. Of 32 microwires, the strongest macro correlation was with contact 1 in the same bundle for "
+             f"{uu_summary['n_micro_best_matches_contact1']} channels and with the same-numbered contact for {uu_summary['n_micro_best_matches_same_number']} channels.")
 
     # persistence of zero delays over all trials
     pers = []
@@ -727,11 +731,11 @@ def stage_s3():
     summ.to_csv(WQC / "pair_metrics_summary.csv", index=False)
     json.dump(uu_summary, open(WQC / "micro_macro_summary.json", "w"), indent=2)
     n_ex = int(excl.exclude_in_evidence_corrected.sum())
-    REP.line(f"排除规则（逐样本相同 ≥0.99 或恒值/饱和/缺失 ≥50%，均需 ≥50% 被检查试次）：满足 {n_ex} 对")
+    REP.line(f"Pairs meeting the prespecified exclusion rule: {n_ex}. The rule requires at least 99% identical samples or at least 50% constant, saturated or missing samples in at least half the checked trials.")
     for r in summ.itertuples():
-        REP.line(f"  {r.pair:<12} {r.selection_reason:<10} 相同比例 {r.identical_fraction_median:.3f} | r0 {r.r_zero_lag_median:.3f} | "
-                 f"差值RMS/均RMS {r.diff_rms_ratio_median:.3f} | 互相关峰滞后中位数 {r.xcorr_lag_median:+.0f} | "
-                 f"零延迟窗口 {r.window_zero_fraction_mean:.2f} | 排除 {r.exclude_in_evidence_corrected}")
+        REP.line(f"  {r.pair:<12} {r.selection_reason:<10} identical fraction {r.identical_fraction_median:.3f} | r0 {r.r_zero_lag_median:.3f} | "
+                 f"difference RMS / mean RMS {r.diff_rms_ratio_median:.3f} | median cross-correlation peak lag {r.xcorr_lag_median:+.0f} | "
+                 f"zero-delay windows {r.window_zero_fraction_mean:.2f} | excluded {r.exclude_in_evidence_corrected}")
     save_state(n_pairs_excluded_evidence=n_ex, excluded_pairs=excl[excl.exclude_in_evidence_corrected].pair.tolist())
     REP.set_task(None)
 
@@ -767,8 +771,8 @@ def stage_s4():
     P = G.estimate_params(trs)
     (CK / "genmodel_params.json").write_text(json.dumps({k: (v.tolist() if isinstance(v, np.ndarray) else v)
                                                           for k, v in P.items()}, indent=1))
-    REP.line("生成模型参数（来自真实试次级数据）：lag-1 φ=" + ", ".join(f"{I.SHORT[r]} {p:+.3f}" for r, p in zip(I.REGIONS, P["phi"]))
-             + " | N 斜率 " + ", ".join(f"{v:+.4f}" for v in P["slope_N"]))
+    REP.line("Generator parameters estimated from the observed trial summaries: lag-1 phi=" + ", ".join(f"{I.SHORT[r]} {p:+.3f}" for r, p in zip(I.REGIONS, P["phi"]))
+             + " | N slopes " + ", ".join(f"{v:+.4f}" for v in P["slope_N"]))
 
     # --- fixed-b references
     counter = mp.get_context("spawn").Value("l", 0)
@@ -782,7 +786,7 @@ def stage_s4():
         need = {ns for ns, _ in todo}
         tasks = [t for t in tasks if t[1] in need]
         total = len(tasks) * REF_CHUNK
-        REP.line(f"fixed-b 参考分布：{len(need)} 个设计（会话数 {sorted(need)}）× 2（去均值/去趋势）× {REF_DRAWS:,} 次 = {total:,} 次模拟")
+        REP.line(f"Fixed-b reference distributions: {len(need)} designs (sessions {sorted(need)}) × 2 (demeaned/detrended) × {REF_DRAWS:,} draws = {total:,} simulations")
         acc = {}
         rt = RateTracker(min_units=N_WORKERS, min_seconds=10)
         last = 0
@@ -790,12 +794,12 @@ def stage_s4():
             for k, res in enumerate(pool.imap_unordered(_ref_task, tasks)):
                 _, ns, det, n = res["args"]
                 acc.setdefault((ns, det), []).append(res["x"])
-                REP.set_progress(done=counter.value, total=total, unit="次")
-                REP.set_task(f"参考分布 会话数={ns} {'去趋势' if det else '去均值'}")
+                REP.set_progress(done=counter.value, total=total, unit="draws")
+                REP.set_task(f"Reference: sessions={ns}, {'detrended' if det else 'demeaned'}")
                 if time.time() - last >= 10 or k + 1 == len(tasks):
                     last = time.time()
-                    REP.line(f"[生成模型与程序验证 / fixed-b 参考分布] 已完成 {counter.value:,}/{total:,} 次 | "
-                             f"块 {k + 1}/{len(tasks)} | {rt.text(k + 1, len(tasks), '块')}")
+                    REP.line(f"[Generator validation / fixed-b reference] {counter.value:,}/{total:,} draws complete | "
+                             f"block {k + 1}/{len(tasks)} | {rt.text(k + 1, len(tasks), 'blocks')}")
         for ns in sorted(need):
             save = {}
             for det in (False, True):
@@ -807,9 +811,9 @@ def stage_s4():
                     save[key + "_tail"] = ref.tail
                     save[key + "_R"] = np.array(ref.R)
             np.savez_compressed(CK / f"fixedb_reference_{ns}sessions.npz", **save)
-            REP.line(f"检查点：已保存 checkpoints/fixedb_reference_{ns}sessions.npz，成功")
+            REP.line(f"Saved checkpoint checkpoints/fixedb_reference_{ns}sessions.npz")
     else:
-        REP.line("fixed-b 参考分布：检查点已存在，跳过（断点续跑）")
+        REP.line("Resuming with the existing fixed-b reference checkpoint")
     refq = []
     for ns in (3, 2, 1):
         refs = load_refs(ns)
@@ -825,7 +829,7 @@ def stage_s4():
 
     def rec(name, ok, detail):
         rows.append(dict(check=name, passed=bool(ok), detail=detail))
-        REP.line(f"  [程序核验] {name}: {'通过' if ok else '未通过'} | {detail}")
+        REP.line(f"  [Implementation checks] {name}: {'pass' if ok else 'fail'} | {detail}")
 
     rng = np.random.default_rng(np.random.SeedSequence([SEED, 5, 0]))
     r = rng.standard_normal((150, 6))
@@ -836,16 +840,16 @@ def stage_s4():
         for j in range(I.MAX_LAG):
             for t in range(s0, s1 - j):
                 naive[j] += r[t] * r[t + j]
-    rec("自协方差和与逐项循环一致", np.allclose(g, naive), f"max|差|={np.abs(g - naive).max():.1e}")
+    rec("Autocovariance sum agrees with explicit iteration", np.allclose(g, naive), f"max absolute difference={np.abs(g - naive).max():.1e}")
     rr = I._residualize(r[None], ses, np.ones(150), False)[0]
     Vb = I.circular_bartlett_total(rr, ses, 5)
     bs = sum(((I._circular_block_sums(rr[s0:s1], 5)) ** 2).sum(0) / 5 for s0, s1 in ses)
-    rec("圆形 Bartlett 方差 = CBB 重采样总和方差的解析值", np.allclose(Vb, bs), f"L=5，max|差|={np.abs(Vb - bs).max():.1e}")
+    rec("Circular Bartlett variance equals the analytic variance of the circular block bootstrap sum", np.allclose(Vb, bs), f"L=5, max absolute difference={np.abs(Vb - bs).max():.1e}")
     # Monte Carlo check of the CBB variance
     idx = I.stratified_indices(rng, ses, 5, 200_000)
     mc = rr[idx].sum(1).var(0)
-    rec("圆形 Bartlett 方差与 20 万次 CBB 重采样方差一致（±2%）", np.all(np.abs(mc / Vb - 1) < 0.02),
-        f"比值范围 {np.round(mc / Vb, 4).min()}–{np.round(mc / Vb, 4).max()}")
+    rec("Circular Bartlett variance agrees with 200,000 circular block bootstrap draws (±2%)", np.all(np.abs(mc / Vb - 1) < 0.02),
+        f"Ratio range {np.round(mc / Vb, 4).min()}–{np.round(mc / Vb, 4).max()}")
     # identical regions
     refs3 = load_refs(3)
     S1 = rng.gamma(5, 2, (150, 1)) * 1000
@@ -854,7 +858,7 @@ def stage_s4():
     N = np.repeat(N1, 4, 1)
     a = I.analytic_inference(S[None], N[None], np.ones(150), ses, refs3)
     bo = I.boot_inference(S, N, np.ones(150), ses, rng, 999)
-    rec("四脑区数据相同 → Δ̂=0、M1/M3 的 t=0 且 p=1；bootstrap p=1", np.all(a["delta"] == 0) and np.allclose(a["p"], 1)
+    rec("Identical regional data give zero contrasts, M1/M3 t=0 and p=1, and bootstrap p=1", np.all(a["delta"] == 0) and np.allclose(a["p"], 1)
         and np.allclose(bo["p"][:4], 1), f"Δ̂={a['delta'][0, 0]}, p(M1)={a['p'][0, 0, 0]:.3f}, p(M0)={bo['p'][0, 0]:.3f}")
     # swap order
     S = rng.gamma(5, 2, (150, 4)) * 1000
@@ -862,7 +866,7 @@ def stage_s4():
     a1 = I.analytic_inference(S[None], N[None], np.ones(150), ses, refs3)
     a2 = I.analytic_inference(S[None, :, ::-1], N[None, :, ::-1], np.ones(150), ses, refs3)
     # comparison (0,1) in original equals -(comparison (2,3)) in reversed order (regions 3,2 -> original 1,0)
-    rec("交换比较顺序只改变差值符号，p 和标准误不变", np.isclose(a1["delta"][0, 0], -a2["delta"][0, 5]) and
+    rec("Reversing a contrast reverses its sign and preserves the p-value and standard error", np.isclose(a1["delta"][0, 0], -a2["delta"][0, 5]) and
         np.allclose(a1["p"][0, :, 0], a2["p"][0, :, 5]) and np.allclose(a1["se"][0, :, 0], a2["se"][0, :, 5]),
         f"Δ {a1['delta'][0, 0]:.4f} vs {a2['delta'][0, 5]:.4f}")
     # zero counts / missing region
@@ -870,43 +874,43 @@ def stage_s4():
     S0[3, 1] = 0; N0[3, 1] = 0
     mu0, Nw0 = I.pooled(S0, N0, np.ones(150))
     z31 = (S0[3, 1] - mu0[1] * N0[3, 1]) / Nw0[1]
-    rec("N=0 的试次对该脑区的影响值为 0（不贡献）", z31 == 0 and
-        np.isclose(mu0[1], S0[:, 1].sum() / N0[:, 1].sum()), f"z={z31}；池化均值与直接计算一致")
+    rec("A trial with N=0 contributes zero influence for that region", z31 == 0 and
+        np.isclose(mu0[1], S0[:, 1].sum() / N0[:, 1].sum()), f"z={z31}, pooled mean agrees with direct calculation")
     S0[:, 2] = 0; N0[:, 2] = 0
     a0 = I.analytic_inference(S0[None], N0[None], np.ones(150), ses, refs3)
     bad = [k for k, (x, y) in enumerate(I.COMPARISONS) if 2 in (x, y)]
-    rec("整个脑区 N=0 → 涉及它的比较 Δ̂ 与 p 为 NaN（计为无效，不当作 0）",
-        np.all(np.isnan(a0["delta"][0, bad])) and np.all(np.isnan(a0["p"][0, :, bad])), f"无效比较 {bad}")
+    rec("A region with N=0 throughout yields NaN contrasts and p-values, counted as invalid",
+        np.all(np.isnan(a0["delta"][0, bad])) and np.all(np.isnan(a0["p"][0, :, bad])), f"Invalid contrasts {bad}")
     # detrend residualization
     tr = np.tile(np.arange(50.0), 3)[:, None] * np.ones((1, 6))
     res_d = I._residualize(tr[None], ses, np.ones(150), True)
-    rec("去趋势残差对纯线性趋势为 0", np.abs(res_d).max() < 1e-9, f"max|残差|={np.abs(res_d).max():.1e}")
+    rec("Detrending a linear trend yields zero residuals", np.abs(res_d).max() < 1e-9, f"max absolute residual={np.abs(res_d).max():.1e}")
     # weights = deletion
     w = np.ones(150); w[[4, 60]] = 0
     keep = w > 0
-    rec("伪迹权重 0 等价于删除该试次的 S、N", np.allclose(I.pooled(S, N, w)[0], S[keep].sum(0) / N[keep].sum(0)), "四脑区一致")
+    rec("Zero artifact weight is equivalent to dropping that trial's S and N", np.allclose(I.pooled(S, N, w)[0], S[keep].sum(0) / N[keep].sum(0)), "Agreement in all four regions")
     # seeds
     x1 = G.generate("C1", "G", np.random.default_rng(np.random.SeedSequence([SEED, 1, 3, 0, 0])), 5, P)[0]
     x2 = G.generate("C1", "G", np.random.default_rng(np.random.SeedSequence([SEED, 1, 3, 0, 0])), 5, P)[0]
-    rec("相同种子生成相同数据", np.array_equal(x1, x2), "逐元素相同")
+    rec("Identical seeds reproduce the data", np.array_equal(x1, x2), "Elementwise match")
     # within-session blocks
     idx = I.stratified_indices(np.random.default_rng(1), ses, 5, 2000)
     ok = all(((idx[:, i * 50:(i + 1) * 50] >= a_) & (idx[:, i * 50:(i + 1) * 50] < b_)).all() for i, (a_, b_) in enumerate(ses))
-    rec("重采样块不跨会话", ok, "2000 次，L=5")
+    rec("Resampled blocks stay within their original session", ok, "2,000 draws, L=5")
     # KV asymptotic comparison
     r1 = load_refs(1)
     kv = lambda b: 1.96 + 2.9694 * b + 0.4160 * b ** 2 - 0.5324 * b ** 3  # noqa: E731
-    det_ = [f"b={b}: 有限样本 {r1[(False, b)].quantile(0.95):.3f} vs 渐近 {kv(b):.3f}" for b in I.B_VALUES]
+    det_ = [f"b={b}: finite sample {r1[(False, b)].quantile(0.95):.3f}, asymptotic {kv(b):.3f}" for b in I.B_VALUES]
     ratio = [r1[(False, b)].quantile(0.95) / kv(b) for b in I.B_VALUES]
-    rec("单会话 n=50 的 fixed-b 95% 临界值与 Kiefer–Vogelsang 渐近多项式同量级（±15%）",
+    rec("Single-session fixed-b 95% critical values at n=50 agree with the Kiefer–Vogelsang asymptotic polynomial to within 15%",
         all(abs(x - 1) < 0.15 for x in ratio), "; ".join(det_))
     pv = pd.DataFrame(rows)
     pv.to_csv(TAB / "program_validation.csv", index=False)
     th = old_method_theory()
     th.to_csv(TAB / "old_method_theory_cbb_variance_ratio.csv", index=False)
     r6 = th[(th.phi == 0.6) & (th.L.isin([1, 5]))]
-    REP.line("旧方法偏宽松的解析解释（AR(1) n=50，去均值）：" + "; ".join(
-        f"φ=0.6 L={int(r.L)}: E[CBB 方差]/真实方差={r.expected_cbb_var_over_true_var:.3f}，近似单检验拒绝率 {r.approx_rejection_at_nominal_0_05_single_test:.3f}"
+    REP.line("Analytic assessment of the previous method for demeaned AR(1), n=50: " + "; ".join(
+        f"phi=0.6 L={int(r.L)}: E[CBB variance]/true variance={r.expected_cbb_var_over_true_var:.3f}, approximate single-test rejection rate {r.approx_rejection_at_nominal_0_05_single_test:.3f}"
         for r in r6.itertuples()))
 
     # --- generator truth check
@@ -921,17 +925,17 @@ def stage_s4():
     acc = {}
     rt = RateTracker(min_units=N_WORKERS, min_seconds=10)
     last = 0
-    REP.line(f"生成模型真值核验：{len(combos)} 个情景×类型 × 200,000 次 = {total:,} 次")
+    REP.line(f"Generator truth checks: {len(combos)} scenario/null combinations × 200,000 draws = {total:,} draws")
     with make_pool(counter) as pool:
         for k, res in enumerate(pool.imap_unordered(_truth_task, tasks)):
             s, n = res["args"][0], res["args"][1]
             a = acc.setdefault((s, n), dict(sum=0, sumsq=0, n=0, truth=res["truth"]))
             a["sum"] = a["sum"] + res["sum"]; a["sumsq"] = a["sumsq"] + res["sumsq"]; a["n"] += res["n"]
-            REP.set_progress(done=counter.value, total=total, unit="次")
+            REP.set_progress(done=counter.value, total=total, unit="draws")
             if time.time() - last >= 10 or k + 1 == len(tasks):
                 last = time.time()
-                REP.line(f"[生成模型与程序验证 / 真值核验] 已完成 {counter.value:,}/{total:,} 次 | 最近：{s}-{n} | "
-                         f"{rt.text(k + 1, len(tasks), '块')}")
+                REP.line(f"[Generator validation / truth] {counter.value:,}/{total:,} draws complete | latest: {s}-{n} | "
+                         f"{rt.text(k + 1, len(tasks), 'blocks')}")
     tc = []
     for (s, n), a in acc.items():
         mean = a["sum"] / a["n"]
@@ -944,15 +948,15 @@ def stage_s4():
                            passed=bool(abs(bias) < 4 * se[k] or abs(bias) < 0.002)))
     tc = pd.DataFrame(tc)
     tc.to_csv(TAB / "generator_truth_check.csv", index=False)
-    REP.line(f"真值核验：{int(tc.passed.sum())}/{len(tc)} 个情景×类型×比较的平均 Δ̂ 与真值一致（|偏差|<4 SE 或 <0.002 ms）；"
-             f"最大 |偏差| {tc.bias.abs().max():.4f} ms")
-    rows.append(dict(check="生成模型真值核验", passed=bool(tc.passed.all()), detail=f"{int(tc.passed.sum())}/{len(tc)}"))
+    REP.line(f"Truth check: {int(tc.passed.sum())}/{len(tc)} scenario/null/contrast means agree with the generating value (absolute bias <4 SE or <0.002 ms). "
+             f"Maximum absolute bias {tc.bias.abs().max():.4f} ms")
+    rows.append(dict(check="Check generating truth", passed=bool(tc.passed.all()), detail=f"{int(tc.passed.sum())}/{len(tc)}"))
     pd.DataFrame(rows).to_csv(TAB / "program_validation.csv", index=False)
     save_state(program_checks_passed=int(pd.DataFrame(rows).passed.sum()), program_checks_total=len(rows))
 
     # --- pilot (timing / program only)
-    REP.line("小规模试点：每个情景×类型 100 次，全部方法（只检查程序与耗时，不用于方法选择）")
-    run_sim_stage("pilot", 0, nsim_ana=100, nsim_boot=100, full=True, label="生成模型与程序验证 / 试点")
+    REP.line("Pilot: 100 draws per scenario and null for all methods, used for implementation checks and timing only")
+    run_sim_stage("pilot", 0, nsim_ana=100, nsim_boot=100, full=True, label="Generator and implementation checks / pilot")
 
 
 # ============================================================================ simulation driver
@@ -989,8 +993,8 @@ def run_sim_stage(stage_name, stage_code, nsim_ana, nsim_boot, full, label, grou
         todo.append(t)
     tot_sims = sum(t["nsim"] for t in tasks)
     done_sims = sum(t["nsim"] for t in done)
-    REP.line(f"[{label}] 批次总数 {len(tasks)}（{tot_sims:,} 次模拟）| 断点续跑：已验证可跳过 {len(done)} 批（{done_sims:,} 次）| "
-             f"仍需处理 {len(todo)} 批")
+    REP.line(f"[{label}] total {len(tasks)} batches ({tot_sims:,} simulations) | verified {len(done)} saved batches ({done_sims:,} simulations) | "
+             f"{len(todo)} batches remaining")
     if not todo:
         return
     # long batches first
@@ -1009,24 +1013,24 @@ def run_sim_stage(stage_name, stage_code, nsim_ana, nsim_boot, full, label, grou
         el = time.time() - t_start
         live = counter.value
         if live < 1 or el < 15:
-            rate = "处理速度：正在估计 | 预计剩余：正在估计"
+            rate = "Throughput and time remaining are being estimated"
         else:
             per = el / live
-            rate = f"处理速度 {live / el:.1f} 次/秒 | 预计剩余约 {fmt_hms(per * (todo_sims - live))}（预计）"
-        REP.line(f"[{label} / 场景 {last_task['scen']} / 类型 {last_task['ntype']} / "
-                 f"方法组 {'解析 M1/M3' if last_task['group'] == 'ana' else f'bootstrap M0/M2 B={BOOT_B}'}]\n"
-                 f"当前模拟（工作进程实时计数，含进行中批次）{done_sims + live:,}/{tot_sims:,} | 已保存检查点的模拟 {sims_saved:,}\n"
-                 f"批次 {n_ok + len(done)}/{len(tasks)} 已保存 | 已运行 {fmt_hms(el)} | {rate}\n"
-                 f"失败 {n_fail} | 待重试 {len(retry)}")
+            rate = f"{live / el:.1f} draws/s | estimated time remaining {fmt_hms(per * (todo_sims - live))}"
+        REP.line(f"[{label} / scenario {last_task['scen']} / null {last_task['ntype']} / "
+                 f"method group {'analytic M1/M3' if last_task['group'] == 'ana' else f'bootstrap M0/M2 B={BOOT_B}'}]\n"
+                 f"Worker simulations (including active batches) {done_sims + live:,}/{tot_sims:,} | checkpointed simulations {sims_saved:,}\n"
+                 f"Saved {n_ok + len(done)}/{len(tasks)} batches | elapsed {fmt_hms(el)} | {rate}\n"
+                 f"Failed {n_fail} | pending retry {len(retry)}")
 
     with make_pool(counter) as pool:
-        REP.set_task(f"已提交 {len(todo)} 批，等待首批结果")
+        REP.set_task(f"Submitted {len(todo)} batches, waiting for first result")
         it = pool.imap_unordered(_sim_task, todo, chunksize=1)
         while True:
             try:
                 res = it.next(timeout=10)
             except mp.TimeoutError:
-                REP.set_progress(done=done_sims + counter.value, total=tot_sims, unit="次模拟")
+                REP.set_progress(done=done_sims + counter.value, total=tot_sims, unit="simulations")
                 continue
             except StopIteration:
                 break
@@ -1041,11 +1045,11 @@ def run_sim_stage(stage_name, stage_code, nsim_ana, nsim_boot, full, label, grou
             else:
                 n_fail += 1
                 retry.append(t)
-                REP.line(f"[{label}] 错误：{t['scen']}-{t['ntype']}-{t['group']} 批次 {t['batch']}。处理：本阶段结束前重试一次。"
-                         f"原因：{res['error'][-500:]}")
-            REP.set_progress(done=done_sims + counter.value, total=tot_sims, unit="次模拟",
-                             extra=f"批次已保存 {n_ok + len(done)}/{len(tasks)}，失败 {n_fail}")
-            REP.set_task(f"{t['scen']}-{t['ntype']}-{t['group']} 批次 {t['batch']}")
+                REP.line(f"[{label}] Error in {t['scen']}-{t['ntype']}-{t['group']} batch {t['batch']}. Retrying once before this stage finishes."
+                         f"Cause: {res['error'][-500:]}")
+            REP.set_progress(done=done_sims + counter.value, total=tot_sims, unit="simulations",
+                             extra=f"Saved {n_ok + len(done)}/{len(tasks)} batches, {n_fail} failures")
+            REP.set_task(f"{t['scen']}-{t['ntype']}-{t['group']} batch {t['batch']}")
             REP.event("batch_done", stage=stage_name, scen=t["scen"], ntype=t["ntype"], group=t["group"],
                       batch=t["batch"], ok=res["ok"], seconds=round(res["seconds"], 2))
             if time.time() - last >= 10:
@@ -1054,7 +1058,7 @@ def run_sim_stage(stage_name, stage_code, nsim_ana, nsim_boot, full, label, grou
                 write_manifest(manifest)
                 manifest = {}
         if retry:
-            REP.line(f"[{label}] 重试 {len(retry)} 个失败批次")
+            REP.line(f"[{label}] Retrying {len(retry)} failed batches")
             for res in pool.imap_unordered(_sim_task, retry):
                 t = res["task"]
                 if res["ok"]:
@@ -1064,11 +1068,11 @@ def run_sim_stage(stage_name, stage_code, nsim_ana, nsim_boot, full, label, grou
                     manifest[Path(t["path"]).relative_to(OUT).as_posix()] = dict(cfg_hash=t["cfg_hash"], seed=t["seed"],
                                                                                  nsim=t["nsim"], retried=True)
                 else:
-                    REP.line(f"[{label}] 重试仍失败：{t['path']}；原因：{res['error'][-500:]}")
+                    REP.line(f"[{label}] Retry failed: {t['path']}, cause: {res['error'][-500:]}")
     write_manifest(manifest)
     status(todo[-1])
     if n_fail:
-        raise RuntimeError(f"{label}: {n_fail} 个批次重试后仍失败")
+        raise RuntimeError(f"{label}: {n_fail} batches still failing after retry")
 
 
 def aggregate(stage_name, groups=("ana", "boot")):
@@ -1133,25 +1137,25 @@ def aggregate(stage_name, groups=("ana", "boot")):
 def verdict_fwer(row):
     al = row["alpha_family"]
     if not row["evaluable"]:
-        return "不可评价（重采样分辨率不足）"
+        return "not evaluable (insufficient resampling resolution)"
     if row["fwer_cp_high"] <= 1.25 * al:
-        return "通过"
+        return "pass"
     if row["fwer_cp_low"] > 1.25 * al:
-        return "不通过"
-    return "证据不足"
+        return "fail"
+    return "insufficient evidence"
 
 
 def verdict_cov(lo, hi, target=0.94):
     if lo >= target:
-        return "通过"
+        return "pass"
     if hi < target:
-        return "不通过"
-    return "证据不足"
+        return "fail"
+    return "insufficient evidence"
 
 
 # ============================================================================ S5 calibration + selection
 def stage_s5():
-    run_sim_stage("calibration", 1, nsim_ana=CAL_NSIM, nsim_boot=CAL_NSIM, full=True, label="校准模拟")
+    run_sim_stage("calibration", 1, nsim_ana=CAL_NSIM, nsim_boot=CAL_NSIM, full=True, label="Calibration simulations")
     fw, cp = aggregate("calibration")
     fw.to_csv(CAL / "calibration_fwer.csv", index=False)
     cp.to_csv(CAL / "calibration_by_comparison.csv", index=False)
@@ -1183,20 +1187,20 @@ def stage_s5():
     sel["selected"] = sel.method == chosen
     sel.to_csv(CAL / "method_selection.csv", index=False)
     (CAL / "method_selection.json").write_text(json.dumps(dict(
-        selected=chosen, rule="analysis_plan_calibration_electrodes.md 第 8 节",
+        selected=chosen, rule="Section 8 of analysis_plan_calibration_electrodes.md",
         n_passing=int(len(passing)), passing=passing.method.tolist()), indent=2, ensure_ascii=False))
     save_state(selected_method=chosen, n_methods_passing_screen=int(len(passing)))
-    REP.line("方法筛选（校准集，核心情景 A/B1/B2/C1/C2 × G/P1/P2，α=0.05）：")
+    REP.line("Method screen on calibration data (core scenarios A/B1/B2/C1/C2 × G/P1/P2 at alpha=0.05):")
     for r in sel.itertuples():
-        REP.line(f"  {r.method:<28} 最大 FWER {r.max_fwer_core:.3f}（CP 上界 {r.max_fwer_cp_high_core:.3f}，{r.worst_core}）"
-                 f" | 最小覆盖率 {r.min_coverage_core:.3f} | 通过筛选 {r.passes_screen} | C1 半宽 {r.C1_mean_median_halfwidth:.4f}")
-    REP.line(f"按预定规则选出的主要推断方法：{chosen if chosen else '无（没有方法通过筛选）'}")
+        REP.line(f"  {r.method:<28} maximum FWER {r.max_fwer_core:.3f} (upper CP bound {r.max_fwer_cp_high_core:.3f}, {r.worst_core})"
+                 f" | minimum coverage {r.min_coverage_core:.3f} | passed screen {r.passes_screen} | C1 half-width {r.C1_mean_median_halfwidth:.4f}")
+    REP.line(f"Primary method under the prespecified rule: {chosen if chosen else 'none (no method passed the screen)'}")
 
 
 # ============================================================================ S6 validation
 def stage_s6():
     nboot = load_state().get("val_nsim_boot", VAL_NSIM_BOOT)
-    run_sim_stage("validation", 2, nsim_ana=VAL_NSIM_ANA, nsim_boot=nboot, full=False, label="独立验证")
+    run_sim_stage("validation", 2, nsim_ana=VAL_NSIM_ANA, nsim_boot=nboot, full=False, label="Independent validation")
     fw, cp = aggregate("validation")
     fw["verdict"] = fw.apply(verdict_fwer, axis=1)
     cp["coverage_verdict"] = [verdict_cov(a, b) for a, b in zip(cp.cov95_cp_low, cp.cov95_cp_high)]
@@ -1209,42 +1213,42 @@ def stage_s6():
             for scope, scen in (("core", G.CORE), ("stress", [s for s in G.SCENARIOS if s not in G.CORE])):
                 f = fw[(fw.method == m) & (fw.alpha_family == al) & fw.scenario.isin(scen)]
                 v = f.verdict.tolist()
-                overall = ("不可评价" if any(x.startswith("不可评价") for x in v) else
-                           "通过" if all(x == "通过" for x in v) else "不通过" if any(x == "不通过" for x in v) else "证据不足")
+                overall = ("not evaluable" if any(x.startswith("not evaluable") for x in v) else
+                           "pass" if all(x == "pass" for x in v) else "fail" if any(x == "fail" for x in v) else "insufficient evidence")
                 summ.append(dict(method=m, alpha_family=al, scope=scope, verdict=overall,
-                                 n_pass=v.count("通过"), n_fail=v.count("不通过"), n_insufficient=v.count("证据不足"),
+                                 n_pass=v.count("pass"), n_fail=v.count("fail"), n_insufficient=v.count("insufficient evidence"),
                                  max_fwer=float(f.fwer.max()), failing=";".join(f"{r.scenario}-{r.null_type}" for r in f.itertuples()
-                                                                                if r.verdict == "不通过")))
+                                                                                if r.verdict == "fail")))
         c = cp[(cp.method == m) & cp.scenario.isin(G.CORE)]
         cv = c.coverage_verdict.tolist()
         summ.append(dict(method=m, alpha_family=np.nan, scope="core_coverage95",
-                         verdict="通过" if all(x == "通过" for x in cv) else "不通过" if any(x == "不通过" for x in cv) else "证据不足",
-                         n_pass=cv.count("通过"), n_fail=cv.count("不通过"), n_insufficient=cv.count("证据不足"),
+                         verdict="pass" if all(x == "pass" for x in cv) else "fail" if any(x == "fail" for x in cv) else "insufficient evidence",
+                         n_pass=cv.count("pass"), n_fail=cv.count("fail"), n_insufficient=cv.count("insufficient evidence"),
                          max_fwer=float(c.coverage95.min()), failing=""))
     summ = pd.DataFrame(summ)
     summ.to_csv(CAL / "validation_verdicts_by_method.csv", index=False)
     chosen = load_state().get("selected_method")
     if chosen:
         s = summ[summ.method == chosen]
-        REP.line(f"主要方法 {chosen} 的独立验证判定：")
+        REP.line(f"Independent validation for primary method {chosen}:")
         for r in s.itertuples():
-            REP.line(f"  {r.scope:<16} α={r.alpha_family} → {r.verdict}（通过 {r.n_pass}，不通过 {r.n_fail}，证据不足 {r.n_insufficient}）"
-                     + (f" 失败：{r.failing}" if r.failing else ""))
+            REP.line(f"  {r.scope:<16} alpha={r.alpha_family} → {r.verdict} (pass {r.n_pass}, fail {r.n_fail}, insufficient evidence {r.n_insufficient})"
+                     + (f"  Failed: {r.failing}" if r.failing else ""))
         save_state(selected_validation={f"{r.scope}_{r.alpha_family}": r.verdict for r in s.itertuples()})
     for m in ["M0_CBB_abs_L1", "M0_CBB_abs_L5"]:
         f = fw[(fw.method == m) & (fw.alpha_family == 0.05) & (fw.null_type == "G")]
-        REP.line(f"旧方法 {m}（α=0.05，全局零假设）FWER：" + "; ".join(f"{r.scenario} {r.fwer:.3f}" for r in f.itertuples()))
+        REP.line(f"Previous method {m} (alpha=0.05, global null) FWER:" + "; ".join(f"{r.scenario} {r.fwer:.3f}" for r in f.itertuples()))
 
 
 # ============================================================================ S7 real data
 SCOPES = {"pooled_3_sessions": [0, 1, 2], "ses-01_only": [0], "ses-02_only": [1], "ses-03_only": [2],
           "drop_ses-01": [1, 2], "drop_ses-02": [0, 2], "drop_ses-03": [0, 1]}
 VARIANT_TEXT = {
-    "main_pooled_nonzero": ("主要对象", "池化均值 ΣS/ΣN，非零窗口，全部试次"),
-    "A_including_zero": ("敏感性 A", "池化均值，包含有限零延迟窗口"),
-    "B_artifact_excluded": ("敏感性 B", "池化均值，非零窗口，NWB 伪迹试次权重 0（保留试次网格）"),
-    "D_pair_equal": ("敏感性 D（不同加权）", "通道对内均值 → 通道对等权 → 试次等权（无缺失时等于会话等权）"),
-    "E_trial_median": ("敏感性 E（不同统计量）", "试次×脑区中位数 → 试次等权均值之差（不是池化中位数之差）"),
+    "main_pooled_nonzero": ("Primary estimand", "Pooled mean ΣS/ΣN, nonzero windows, all trials"),
+    "A_including_zero": ("Sensitivity A", "Pooled mean including finite zero-delay windows"),
+    "B_artifact_excluded": ("Sensitivity B", "Pooled mean of nonzero windows with zero weight for NWB artifact trials, preserving the trial grid"),
+    "D_pair_equal": ("Sensitivity D (alternative weighting)", "Average within pair, then weight pairs and trials equally (equivalent to equal session weighting with complete data)"),
+    "E_trial_median": ("Sensitivity E (alternative statistic)", "Difference of equally trial-weighted averages of trial-by-region medians"),
 }
 
 
@@ -1312,8 +1316,8 @@ def analyse(S, N, w, sessions, boot_seed=None, B=REAL_B, Ls=I.LS):
 
 def method_param(m):
     if "_b" in m:
-        return f"Bartlett b={m.split('_b')[-1]}（M={int(round(float(m.split('_b')[-1]) * 50))} 试次/会话）"
-    return f"块长 L={m.split('_L')[-1]} 试次"
+        return f"Bartlett b={m.split('_b')[-1]} (M={int(round(float(m.split('_b')[-1]) * 50))} trials/session)"
+    return f"Block length L={m.split('_L')[-1]} trials"
 
 
 def real_diagnostics(S, N, w, sessions):
@@ -1348,14 +1352,14 @@ def stage_s7():
 
     def passed(m, al, scope="core"):
         s = vv[(vv.method == m) & (vv.scope == scope) & (vv.alpha_family == al)]
-        return len(s) == 1 and s.verdict.iloc[0] == "通过"
+        return len(s) == 1 and s.verdict.iloc[0] == "pass"
 
     # validated dependence range for the selected method (all null types must pass at alpha=0.05)
     phi_of = {"A": 0.0, "B1": 0.3, "B2": 0.6, "D1": 0.85}
     phi_ceiling, trend_ok = None, None
     if chosen:
         f = fwv[(fwv.method == chosen) & (fwv.alpha_family == 0.05)]
-        okscen = {s: (f[f.scenario == s].verdict == "通过").all() for s in G.SCENARIOS}
+        okscen = {s: (f[f.scenario == s].verdict == "pass").all() for s in G.SCENARIOS}
         phi_ceiling = 0.0 if okscen["A"] else None
         for s in ("B1", "B2", "D1"):
             if phi_ceiling is not None and okscen[s]:
@@ -1364,14 +1368,14 @@ def stage_s7():
                 break
         trend_ok = bool(okscen["D3"])
     meta, pts, S, N, Nall, MED, V, art = real_arrays()
-    REP.line(f"主要方法：{chosen}；已验证的 lag-1 自相关上限 {phi_ceiling}；趋势情景 D3 通过：{trend_ok}")
+    REP.line(f"Primary method: {chosen}. Validated upper bound on lag-1 autocorrelation: {phi_ceiling}. Trend scenario D3 passed: {trend_ok}")
     rows = []
     diag_rows = []
     jobs = [(v, sc) for v in VARIANT_TEXT for sc in SCOPES]
-    REP.set_progress(done=0, total=len(jobs), unit="数据集")
+    REP.set_progress(done=0, total=len(jobs), unit="datasets")
     rt = RateTracker(min_units=2, min_seconds=5)
     for j, (v, sc) in enumerate(jobs):
-        REP.set_task(f"{v} / {sc}：解析方法 + bootstrap（B={REAL_B}，L=1,2,5,10）")
+        REP.set_task(f"{v} / {sc}: analytic methods and bootstrap (B={REAL_B}, L=1,2,5,10)")
         Sv, Nv, wv = variant_inputs(v, S, N, Nall, MED, V, art)
         Ss, Ns, ws, sessions = subset(Sv, Nv, wv, SCOPES[sc])
         vi = list(VARIANT_TEXT).index(v); si = list(SCOPES).index(sc)
@@ -1381,25 +1385,25 @@ def stage_s7():
         diag_rows.append(dg)
         for m, o in res.items():
             for k, (a_, b_) in enumerate(I.COMPARISONS):
-                rows.append(row_for(m, o, k, v, sc, "原始映射", "全部 60 个区内通道对", int(ws.sum()),
+                rows.append(row_for(m, o, k, v, sc, "original mapping", "All 60 within-region channel pairs", int(ws.sum()),
                                     vstr(m), chosen, passed, dg.iloc[k], phi_ceiling, trend_ok))
         REP.set_progress(done=j + 1)
-        REP.line(f"[真实数据重新检验] 数据集 {j + 1}/{len(jobs)}：{v} / {sc} 完成 | {rt.text(j + 1, len(jobs), '数据集')}")
+        REP.line(f"[Real-data tests] dataset {j + 1}/{len(jobs)}: {v} / {sc} complete | {rt.text(j + 1, len(jobs), 'datasets')}")
     # electrode-handling data sets (main estimand, pooled scope)
     pc = pd.read_csv(ELE / "pair_classification.csv")
     excl = set(st.get("excluded_pairs", []))
     ex_idx = {int(r.pair_index) for r in pc.itertuples() if f"{r.label_i}–{r.label_j}" in excl}
     contacts = sorted(set(pc.label_i) | set(pc.label_j), key=lambda s: (bundle_of(s), int(s[len(bundle_of(s)):])))
-    sets = [("证据支持的纠正", f"排除满足预定数据质量规则的通道对（{len(ex_idx)} 对）", lambda r: r.pair_index not in ex_idx, False),
-            ("未确认敏感性", "排除零延迟比例 ≥70% 的通道对", lambda r: r.zero_fraction_all_trials < 0.70, False),
-            ("未确认敏感性", "只用同侧标签通道对", lambda r: bool(r.same_side_label), True),
-            ("未确认敏感性", "只用异侧标签通道对", lambda r: not r.same_side_label, True),
-            ("未确认敏感性", "只用同束（同一电极）通道对", lambda r: bool(r.same_bundle), True),
-            ("未确认敏感性", "只用跨束通道对", lambda r: not r.same_bundle, True),
-            ("未确认敏感性", "排除涉及 ECL 的通道对（侧别冲突）", lambda r: not r.involves_ECL, True)]
+    sets = [("evidence-based correction", f"Exclude pairs meeting the prespecified quality rule ({len(ex_idx)} pairs)", lambda r: r.pair_index not in ex_idx, False),
+            ("exploratory sensitivity", "Exclude pairs with ≥70% zero-delay windows", lambda r: r.zero_fraction_all_trials < 0.70, False),
+            ("exploratory sensitivity", "Pairs labelled ipsilateral only", lambda r: bool(r.same_side_label), True),
+            ("exploratory sensitivity", "Pairs labelled contralateral only", lambda r: not r.same_side_label, True),
+            ("exploratory sensitivity", "Within-bundle pairs (same electrode) only", lambda r: bool(r.same_bundle), True),
+            ("exploratory sensitivity", "Between-bundle pairs only", lambda r: not r.same_bundle, True),
+            ("exploratory sensitivity", "Exclude pairs involving ECL (conflicting laterality)", lambda r: not r.involves_ECL, True)]
     for c in contacts:
-        sets.append(("未确认敏感性", f"去一触点：{c}", (lambda cc: (lambda r: cc not in (r.label_i, r.label_j)))(c), False))
-    REP.set_progress(done=0, total=len(sets), unit="电极处理数据集")
+        sets.append(("exploratory sensitivity", f"leave-one-contact-out: {c}", (lambda cc: (lambda r: cc not in (r.label_i, r.label_j)))(c), False))
+    REP.set_progress(done=0, total=len(sets), unit="electrode sensitivity datasets")
     elec_rows = []
     pts2 = pts.copy()
     order = {f"{s}_{p}": i for i, (s, p) in enumerate(zip(meta.session, meta.trial_pos))}
@@ -1425,15 +1429,15 @@ def stage_s7():
                 row.update(pairs_A=npairs[ra], pairs_B=npairs[rb], contacts_A=ncont[ra], contacts_B=ncont[rb],
                            pairs_removed_A=removed[ra], pairs_removed_B=removed[rb])
                 if strat and min(npairs[ra], npairs[rb]) < 3:
-                    row["decision"] = "仅描述（某一脑区通道对 < 3，不做检验）" if m == chosen else row["decision"]
+                    row["decision"] = "descriptive only (fewer than three pairs in one region)" if m == chosen else row["decision"]
                     row["test_performed"] = False
                 if min(npairs[ra], npairs[rb]) == 0:
-                    row["decision"] = "无数据（某一脑区无剩余通道对）"
+                    row["decision"] = "no data (no remaining pairs in one region)"
                     row["test_performed"] = False
                 elec_rows.append(row)
         REP.set_progress(done=j + 1)
         if (j + 1) % 5 == 0 or j + 1 == len(sets):
-            REP.line(f"[真实数据重新检验 / 电极处理] {j + 1}/{len(sets)}：{desc}")
+            REP.line(f"[Real-data tests / electrode sensitivity] {j + 1}/{len(sets)}: {desc}")
     allr = pd.DataFrame(rows + elec_rows)
     allr.to_csv(REAL / "results_all_methods_all_variants.csv", index=False)
     pd.concat(diag_rows).to_csv(REAL / "diagnostics_influence_acf_trend.csv", index=False)
@@ -1441,9 +1445,9 @@ def stage_s7():
         sel = allr[allr.method == chosen]
         sel.to_csv(REAL / "results_selected_method.csv", index=False)
         main = sel[(sel.analysis_variant == "main_pooled_nonzero") & (sel.session_scope == "pooled_3_sessions") &
-                   (sel.data_version == "原始映射")]
+                   (sel.data_version == "original mapping")]
         for r in main.itertuples():
-            REP.line(f"  主要结果 {r.region_A_short}−{r.region_B_short}: Δ={r.difference_ms:+.3f} ms，95% CI [{r.ci95_low:+.3f}, {r.ci95_high:+.3f}]，"
+            REP.line(f"  Primary result {r.region_A_short}−{r.region_B_short}: difference={r.difference_ms:+.3f} ms, 95% CI [{r.ci95_low:+.3f}, {r.ci95_high:+.3f}], "
                      f"p_adj={fmt_p(r.adjusted_p)} → {r.decision}")
     save_state(real_rows=len(allr))
 
@@ -1458,25 +1462,25 @@ def row_for(m, o, k, variant, scope, data_version, electrode_handling, n_trials_
     lim = []
     if m == chosen:
         if not np.isfinite(padj):
-            dec_ = "无法计算"
+            dec_ = "not estimable"
         else:
             lvl = [al for al in (0.001, 0.01, 0.05) if passed(m, al) and padj < al]
             if lvl:
-                dec_ = f"显著（p_adj<{lvl[0]:g}，该水平已通过独立验证）"
+                dec_ = f"significant (adjusted p<{lvl[0]:g}, independently validated level)"
             elif padj < 0.05:
-                dec_ = "证据不足（p_adj<0.05，但方法未在该水平通过独立验证）"
+                dec_ = "insufficient evidence (adjusted p<0.05 but validation failed at this level)"
             elif passed(m, 0.05):
-                dec_ = "不显著（不等于无差异）"
+                dec_ = "nonsignificant (compatible with a difference)"
             else:
-                dec_ = "证据不足"
+                dec_ = "insufficient evidence"
             if phi_ceiling is not None and dg.lag1_acf_influence > phi_ceiling + 1e-9:
-                lim.append(f"lag-1 自相关 {dg.lag1_acf_influence:+.2f} 超过已验证上限 {phi_ceiling}")
+                lim.append(f"lag-1 autocorrelation {dg.lag1_acf_influence:+.2f} exceeds the validated upper bound {phi_ceiling}")
             if trend_ok is False and dg.max_abs_trend_t > 2:
-                lim.append(f"会话内趋势 |t|={dg.max_abs_trend_t:.1f}，趋势情景未通过验证")
-            if lim and dec_.startswith("显著"):
-                dec_ = "证据不足（真实数据诊断超出已验证范围）"
+                lim.append(f"within-session trend |t|={dg.max_abs_trend_t:.1f} and trend scenario failed validation")
+            if lim and dec_.startswith("significant"):
+                dec_ = "insufficient evidence (diagnostics exceed the validated range)"
     elif chosen is None:
-        dec_ = "证据不足（没有方法通过校准筛选）"
+        dec_ = "insufficient evidence (no method passed the calibration screen)"
     return dict(data_version=data_version, electrode_handling=electrode_handling, analysis_variant=variant,
                 analysis_role=VARIANT_TEXT[variant][0], estimand=VARIANT_TEXT[variant][1], session_scope=scope,
                 region_A=I.REGIONS[a_], region_B=I.REGIONS[b_], region_A_short=I.SHORT[I.REGIONS[a_]],
@@ -1486,7 +1490,7 @@ def row_for(m, o, k, variant, scope, data_version, electrode_handling, n_trials_
                 raw_p=p, adjusted_p=padj, method=m, method_param=method_param(m),
                 bootstrap_B=o["B"], n_valid_resamples=o["n_valid"][k], n_trials_effective=n_trials_eff,
                 is_selected_method=(m == chosen), calibration_scope=vstring, decision=dec_,
-                diagnostics=f"lag-1 ACF(影响值)={dg.lag1_acf_influence:+.2f}; 会话内趋势 t={dg.trend_t_by_session}",
+                diagnostics=f"lag-1 ACF(influence)={dg.lag1_acf_influence:+.2f}; within-session trend t={dg.trend_t_by_session}",
                 limitations="; ".join(lim), test_performed=True)
 
 
@@ -1509,8 +1513,8 @@ def stage_s8():
         "calibration/calibration_fwer.csv", "calibration/method_selection.csv", "calibration/validation_fwer.csv",
         "calibration/validation_by_comparison.csv", "calibration/validation_verdicts_by_method.csv",
         "realdata/results_all_methods_all_variants.csv", "realdata/old_vs_new_significance.csv",
-        "reports/results_numeric_summary_CN.md",
-        "REPORT_CN.md", "methods_paragraph_EN.md", "response_reviewer_2_4_2_EN.md",
+        "reports/results_numeric_summary.md",
+        "REPORT.md", "methods_paragraph_EN.md", "response_reviewer_2_4_2_EN.md",
         "run.log", "progress.jsonl", "timing_summary.csv", "run_state.json", "checkpoint_manifest.json",
         "logs/commands.txt", "logs/environment.json", "logs/time_estimate_at_start.json",
     ]
@@ -1528,8 +1532,8 @@ def stage_s8():
     integ = dict(expected_files=len(expected), missing=missing, empty=empty, checkpoints_in_manifest=n_ck,
                  checkpoints_missing=n_missing_ck, validation_rows=len(fw), validation_rows_expected=exp_rows)
     (OUT / "integrity_check.json").write_text(json.dumps(integ, indent=2, ensure_ascii=False))
-    REP.line(f"完整性检查：预期文件 {len(expected)}，缺失 {len(missing)} {missing[:8]}，空文件 {len(empty)}；"
-             f"检查点登记 {n_ck}，缺失 {n_missing_ck}；验证结果行 {len(fw)}/{exp_rows}")
+    REP.line(f"Completeness check: {len(expected)} files expected, {len(missing)} missing {missing[:8]}, {len(empty)} empty. "
+             f"{n_ck} checkpoints registered, {n_missing_ck} missing, validation rows {len(fw)}/{exp_rows}")
     return not missing and not empty and n_missing_ck == 0 and len(fw) == exp_rows
 
 
@@ -1546,7 +1550,7 @@ def main():
     want = [s.strip() for s in args.stages.split(",") if s.strip()]
     REP = Reporter(OUT, heartbeat_s=10)
     t_run = time.time()
-    REP.line(f"Review 2.4.2 / 图 4c 校准与电极核验流水线启动 | PID {os.getpid()} | 阶段 {want} | 输出 {OUT}")
+    REP.line(f"Reviewer 2.4.2 / Figure 4c calibration and electrode audit | PID {os.getpid()} | stages {want} | output {OUT}")
     REP.event("run_start", stages=want)
     names = dict(STAGES)
     done_stages = []
@@ -1556,32 +1560,32 @@ def main():
         try:
             r = STAGE_FN[s]()
             if s == "s8" and r is False:
-                REP.end_stage("完成（发现未完成事项）")
+                REP.end_stage("completed (open items)")
                 done_stages.append(s)
                 continue
-            REP.end_stage("完成")
+            REP.end_stage("completed")
             done_stages.append(s)
         except Exception as e:  # noqa: BLE001
-            REP.line(f"[{names[s]}] 错误：{type(e).__name__}: {e}")
+            REP.line(f"[{names[s]}] Error: {type(e).__name__}: {e}")
             REP.line(traceback.format_exc())
-            REP.line(f"处理：停止本阶段及后续阶段（{[names[x] for x in want[want.index(s) + 1:]]}），修复后可用 --stages 从此处续跑。")
-            REP.end_stage("失败", note=str(e)[:200])
+            REP.line(f"Stopped this and subsequent stages ({[names[x] for x in want[want.index(s) + 1:]]}). Resume with --stages after correcting the issue.")
+            REP.end_stage("failed", note=str(e)[:200])
             break
         complete = s == "s8" and r is True
     el = time.time() - t_run
     own, kids = peak_rss_mb()
     REP.line("=" * 78)
     if complete:
-        REP.line("全部完成")
+        REP.line("All stages completed")
     else:
         left = [names[x] for x in want if x not in done_stages]
-        REP.line(f"本次运行结束（未全部完成）。本次完成阶段：{[names[x] for x in done_stages]}；未完成：{left or '无（但完整性检查发现缺项或未运行 s8）'}")
-    REP.line(f"本次运行耗时 {fmt_hms(el)} | 峰值内存 主进程 {own:.0f} MB / 单个子进程最大 {kids:.0f} MB | 输出目录 {OUT}")
+        REP.line(f"Run ended before all stages completed. Completed: {[names[x] for x in done_stages]}. Outstanding: {left or 'none listed (incomplete outputs or s8 not run)'}")
+    REP.line(f"Elapsed {fmt_hms(el)} | peak memory: main {own:.0f} MB / largest child {kids:.0f} MB | output {OUT}")
     if (OUT / "timing_summary.csv").exists():
         ts = pd.read_csv(OUT / "timing_summary.csv")
         for r in ts.itertuples():
             REP.line(f"  {r.stage:<16} {r.status:<10} {float(r.seconds):>9.1f} s")
-    REP.line(f"主报告：{OUT / 'REPORT_CN.md'}；主要图表：{FIG}")
+    REP.line(f"Report: {OUT / 'REPORT.md'}. Figures: {FIG}")
     REP.event("run_end", complete=complete, seconds=round(el, 1))
     REP.close()
 

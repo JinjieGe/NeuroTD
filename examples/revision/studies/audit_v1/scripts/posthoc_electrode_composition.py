@@ -24,7 +24,7 @@ import pandas as pd  # noqa: E402
 import stats_core as sc  # noqa: E402
 
 t0 = time.time()
-print(f"[事后描述性分析] 开始 {time.strftime('%H:%M:%S')}", flush=True)
+print(f"[Post hoc descriptive analysis] Started {time.strftime('%H:%M:%S')}", flush=True)
 TAB, FIG = OUT / "tables", OUT / "figures"
 z = np.load(OUT / "checkpoints/windows_all_trials.npz")
 Wv = z["shifts_samples"].astype(np.int32)
@@ -127,4 +127,4 @@ print(summ.to_string(index=False), flush=True)
 print(pd.DataFrame(cat_rows).to_string(index=False), flush=True)
 print(pd.DataFrame(bnd).to_string(index=False), flush=True)
 print(pt.sort_values(["region", "mean_nonzero_ms"]).to_string(index=False), flush=True)
-print(f"[事后描述性分析] 完成，耗时 {time.time() - t0:.1f} s", flush=True)
+print(f"[Post hoc descriptive analysis] Finished in {time.time() - t0:.1f} s", flush=True)

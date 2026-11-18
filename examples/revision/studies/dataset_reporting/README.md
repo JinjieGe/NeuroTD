@@ -1,4 +1,4 @@
-# Dataset reporting inventory / 数据清点
+# Dataset reporting inventory
 
 Comments: 2.6, 2.8.4. Newly written integration utility, not a recovered historical script.
 

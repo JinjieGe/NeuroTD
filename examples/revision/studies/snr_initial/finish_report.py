@@ -1,4 +1,4 @@
-"""Summarize completed results, add integrity checks and a portable Chinese report."""
+"""Summarize completed results, add integrity checks and a portable report."""
 import json, platform, sys, time, hashlib, html, base64
 from pathlib import Path
 import numpy as np
@@ -67,62 +67,57 @@ for name,tpl in templates.items():
     template_rows.append(dict(template=name,trial_pos=int(eligible.trial_pos.iloc[0]),trial_id=int(eligible.trial_id.iloc[0]),channel={'AHL':0,'AL':8,'ECL':16,'PHR':24}[bundle],relative_trial_start_s=1,signal_duration_s=1,template_sha256=hashlib.sha256(tpl.tobytes()).hexdigest()))
 pd.DataFrame(template_rows).to_csv(P/'provenance/template_manifest.csv',index=False)
 
-zero_text='；'.join(f"{row.noise}噪声下平均绝对延迟为{row.mean_abs_ms:.3f} ms，延迟RMSE为{row.mean_rmse_ms:.3f} ms" for row in zero.itertuples())
-text=f'''NeuroTD：Reviewer 2.7 信号质量—延迟实验，本机完成报告
-完成日期：{time.strftime('%Y-%m-%d')}
+zero_text = ". ".join(
+    f"{row.noise} noise gave a mean absolute delay of {row.mean_abs_ms:.3f} ms "
+    f"and a delay RMSE of {row.mean_rmse_ms:.3f} ms" for row in zero.itertuples()
+)
+text=f'''NeuroTD signal quality and delay estimates
+Reviewer 2.7 | {time.strftime('%Y-%m-%d')}
 
-1. 已完成什么
-从DANDI官网下载版本0.250610.0938的资产目录及三个原始文件的官方元数据。本机已有的三个NWB文件逐一通过官方SHA-256与字节数校验，因此复用约4.1 GB原始数据，没有重复下载。数据范围为sub-01的ses-01、ses-02、ses-03，与此前原稿分析范围一致。本轮未下载或分析其他受试者。
-完成150个8秒试次×32通道的信号质量计算。主分析排除16个带artifact标记试次，共134个；另保留全部150试次和124个无artifact且回答正确试次的敏感性结果。
-原有150×60×508的有符号窗口延迟全部复用，不重跑数百万个已有估计。重新生成9,000条配对×试次汇总；主分析保留有效零延迟。原项目与原始文件均未修改。
-完成11,520组新增噪声模拟及36组无新增噪声基准，共11,556组。累计124次整段记录与原函数进行逐窗核对，已检查的延迟均完全一致。真实数据汇总与旧表的非零延迟均值最大差为{maxdiff:.3g} ms。
-本轮独立脚本以线性FFT卷积计算同一个MSE目标中的交叉乘积，并保留每个候选片段的完整能量项、搜索范围与符号。这是原MSE搜索的等价计算加速，不是把NeuroTD换成论文中的FFTShift或相位相关基线。浮点计算的验证仅覆盖已列明的测试记录，不能推定所有可能信号上的数值行为均已穷尽。
+Data and estimator checks
+DANDI dataset version 0.250610.0938 identifies three NWB assets for sub-01, ses-01 through ses-03. Checks of official file sizes and SHA-256 hashes allowed reuse of approximately 4.1 GB of recordings. The study covers 150 eight-second trials and 32 channels. Removing 16 trials marked as artifacts leaves 134 trials. Sensitivity summaries cover all 150 trials and the 124 artifact-free trials with correct responses.
+The analysis reused 150 x 60 x 508 signed window estimates, generated 9,000 pair-by-trial summaries, and retained valid zero delays in the primary analysis. The 11,520 added-noise pairs and 36 no-added-noise baselines give 11,556 constructed pairs. On 124 full records checked window by window, the shifts matched the original function. The largest difference from the archived nonzero mean-delay summaries was {maxdiff:.3g} ms.
+Linear FFT convolution accelerates the cross-product in the original MSE objective. Each candidate retains its full energy term, shift convention, and search bounds. Equivalence was checked on the specified records.
 
-2. 真实数据：比较的是信号质量代理指标，不是已知真实SNR
-没有纯净信号和噪声真值，不能把RMS、某个频段功率或对齐残差直接命名为真实SNR。预先固定四项指标：50 Hz与60 Hz邻域谱突出程度、高频功率占比、配对信号RMS幅度比。50/60 Hz突出可能包含真实神经振荡；高频也可能包含神经活动；RMS不平衡也不等于噪声。因此它们只用于探索潜在混杂。
-每个8秒通道以1秒Hann分段、50%重叠计算Welch谱。线频突出程度=10log10[中心±1 Hz平均功率/距离中心2–5 Hz平均功率]；高频比例=1000–10000 Hz功率/1–10000 Hz功率。配对使用两通道中较大的线频突出程度、两通道高频比例均值、abs(log2(RMS_x/RMS_y))。延迟结果是每个试次所有508个有效窗口的平均绝对延迟。
-在同一会话、同一任务负荷和同一电极对内，跨试次计算Spearman相关；至少10试次且指标有变化才报告。相关分布不构成独立样本检验，没有把重叠窗口、重复电极对或3个会话当作独立受试者。
-原来的60对中，12对同束、48对跨束，分别展示。脑区映射此前存在未解决问题，因此原脑区标签仅在明确标注的描述性敏感性表中保留。不能据此宣称海马SNR更低，或其延迟差已被SNR解释。
+Observational analysis
+The four prespecified proxies were 50 Hz and 60 Hz spectral prominence, the high-frequency power fraction, and the RMS amplitude imbalance between channels. Line and high-frequency power may include neural activity. Direct physiological SNR is unknown.
+Welch spectra used one-second Hann segments with 50% overlap within each eight-second recording. Line prominence was 10 log10(mean power within 1 Hz of the center / mean power 2–5 Hz from the center). The high-frequency fraction used 1,000–10,000 Hz power divided by 1–10,000 Hz power. Each pair used the larger line prominence, the average high-frequency fraction, and abs(log2(RMS_x/RMS_y)). The delay outcome was the mean absolute delay across 508 valid windows per trial.
+Spearman correlations were computed across trials within each session, task load, and electrode pair. At least ten trials and variation in the predictor were required. The 12 within-bundle and 48 between-bundle pairs are shown separately. Regional labels are retained only for descriptive sensitivity checks because anatomical mapping remains uncertain.
 
-主分析相关汇总：
+Correlations in the primary analysis
 {quality_medians.to_string(index=False,float_format=lambda x:f'{x:.3f}')}
-本轮没有观察到四项代理指标与延迟之间一致的正相关模式。60 Hz谱突出程度的相关中位数接近0（同束约0.012，跨束约0.032）；RMS幅度不平衡的相关中位数为同束约0.273、跨束约0.131。高频比例则呈负的相关中位数。这些方向差异说明不能把所有代理指标统一解释成“噪声强度”，也不能从弱相关推出噪声混杂已被排除。
+The median 60 Hz correlations were about 0.012 within bundles and 0.032 between bundles. For RMS imbalance they were about 0.273 and 0.131, respectively. The high-frequency fraction had negative median correlations. The four proxies showed different patterns and leave regional noise confounding unresolved.
 
-3. 已知延迟加噪实验
-三个会话×四个电极束各取一个预先规定模板，共12段。使用每会话首个无artifact且正确试次，固定取相对试次开始1–2秒的一秒记录，并保留原记录边界余量；没有循环移位或零填充。此片段只是固定模板，不宣称其生理上没有噪声。
-构造y(t)=x(t-d)，d=0、80、320采样点，即0、2.5、10 ms。使用原矩形窗W=1001、hop=500、搜索±500采样点（±15.625 ms），幅度增益1，不更改E，不做自动选窗。
-新增噪声包括白噪声及AR(1)有色噪声（rho=0.95），分别只加在y或独立加在x、y。新增噪声SNR=20、10、0、-10 dB；每条件20个随机实现。同一实现跨SNR复用标准化噪声，实现配对比较。噪声按模板均方功率缩放，逐条检查实际新增噪声SNR。统计单位是完整构造信号对。
-36组无新增噪声基准的最大RMSE为{base_max:.6g} ms。
-真实延迟为0、两通道都加噪声且SNR=-10 dB时：{zero_text}。
+Known-delay experiment
+Each of three sessions and four bundles contributed one template. The first artifact-free correct trial supplied a one-second segment from 1–2 s after trial onset. Original margins allowed shifts without wrapping or zero padding. The template retains background activity from the recording.
+The generating model was y(t)=x(t-d) with d of 0, 80, or 320 samples (0, 2.5, or 10 ms). Settings were a 1,001-sample rectangular window, hop of 500, search range of ±500 samples (±15.625 ms), unit gain, and fixed window size. The original E was retained.
+White or AR(1) noise (rho=0.95) was added to y alone or independently to both channels at 20, 10, 0, and -10 dB, with 20 realizations per condition. Noise power was scaled to template power and checked per record. Paired SNR comparisons reused the same standardized noise realization. The independent unit was a complete constructed pair.
+Maximum RMSE across the 36 baselines was {base_max:.6g} ms. With true delay zero, both channels noisy, and SNR of -10 dB, {zero_text}.
 
-部分关键数值（每行12模板×20噪声实现，240个构造信号对）：
+Selected conditions (12 templates x 20 realizations per row)
 {selected.to_string(index=False,float_format=lambda x:f'{x:.3f}')}
 
-4. 如何用于回复审稿人
-这是一项对“噪声是否会造成表观延迟”的直接敏感性检验，并以原范围真实数据补充信号质量与延迟的关联分析。应同时查看估计绝对延迟、真实延迟RMSE和有符号偏差，不能把它们混为一谈。低SNR使估计失准不等于所有真延迟下绝对延迟都会增大。
-这一结果不能单独排除原脑区比较中的噪声混杂：本轮只有一名受试者；真实数据的SNR未被直接识别；脑区标注与配对结构需要进一步核对；受试者层面的统计推断、波形对应假设及生理机制解释仍是后续工作。也没有据此处理跨区域传输方向。
+Interpretation
+Report mean absolute delay, delay RMSE, and signed bias separately. Noise can impair recovery without increasing every estimated delay magnitude. One participant, uncertain regional labels, and the absence of direct SNR measurements limit inference about hippocampal timing, correspondence between real waveforms, and transmission direction.
 
-5. 如何阅读输出
-图01：各质量指标与平均绝对延迟的试次间相关。每个箱图汇总同一会话/任务负荷/电极对内的相关系数，无p值或校准置信区间。
-图02：上排是估计的平均绝对延迟，黑虚线是真实绝对延迟；下排是真实延迟RMSE。横轴向右新增噪声增加。曲线为12模板×20噪声实现的平均，不是不同受试者的平均。
-图03：真实延迟为0时，每条线单独展示一个模板，便于发现模板差异。线间离散不是生物学总体置信区间。
-results/包含完整数值、全部敏感性结果、验证记录。checkpoints/保存模板、每个构造信号对的估计数组和分批结果。provenance/保存官方来源、SHA-256、输入路径、环境和模板清单。analysis_plan.json为查看结果前固定的方案。
-运行：使用neurotd312环境执行run_analysis.py prepare，再执行run_analysis.py run，最后执行finish_report.py。已有分批结果会复用。此脚本包含本机绝对路径；换电脑时需调整顶部路径。
+Reading the outputs
+Figure 1 shows trial-level quality correlations by session, load, and electrode pair. The box plots describe these coefficients. Figure 2 compares mean absolute estimates with the true magnitude (dashed line) and delay RMSE below. Noise increases from left to right. Each condition averages 12 templates and 20 noise realizations. Figure 3 shows individual templates with a true delay of zero. The between-template spread is descriptive.
+The results directory contains numerical outputs, sensitivity analyses, and validation records. Checkpoints hold templates, estimated shifts, and batches. The provenance directory records sources, hashes, paths, environment, and the template list. The prespecified design is in analysis_plan.json. In the staged workspace run run_analysis.py prepare, run_analysis.py run, then finish_report.py. Completed batches are reused.
 '''
-(P/'结果说明.txt').write_text(text)
+(P/'results_summary.txt').write_text(text)
 
 def table(df):return df.to_html(index=False,float_format=lambda x:f'{x:.3f}',border=0)
 def picture(name):
     data=base64.b64encode((P/f'figures/{name}.png').read_bytes()).decode()
     return f'<img src="data:image/png;base64,{data}" alt="{name}">'
-parts=[f'<h1>信号质量会影响延迟估计吗？</h1><p class="sub">NeuroTD · Reviewer 2.7 · 本机实验报告 · {time.strftime("%Y-%m-%d")}</p>',
-       '<div class="cards"><div><b>3</b>已验证NWB会话</div><div><b>4,800</b>通道×试次质量记录</div><div><b>11,556</b>构造信号对</div><div><b>124</b>原函数核对记录</div></div>',
-       '<p class="note">本轮范围为一名受试者。原项目与E未修改；真实数据采用质量代理指标，加噪实验具有已知的构造延迟与新增噪声强度。</p>',
-       '<h2>数据范围与验证</h2>',table(scope),
-       '<h2>真实信号的质量—延迟关联</h2>',picture('01_real_quality_correlations'),table(quality_medians),
-       '<h2>控制新增噪声，观察估计如何变化</h2>',picture('02_controlled_noise'),table(selected),
-       '<h2>不同模板的敏感性</h2>',picture('03_template_sensitivity'),
-       '<h2>完整说明与解释边界</h2><div class="full">'+html.escape(text).replace('\n','<br>')+'</div>']
-page='<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>NeuroTD 信号质量—延迟实验</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;max-width:1150px;margin:40px auto;color:#203047;line-height:1.7;padding:0 24px}h1{font-size:32px}h2{border-bottom:2px solid #c9dbe7;padding-top:24px}.sub{color:#617080}.cards{display:flex;gap:16px}.cards div{background:#edf4f8;border-radius:12px;padding:18px;flex:1}.cards b{display:block;font-size:30px;color:#006a96}.note{border-left:4px solid #d89239;background:#fff7ea;padding:16px}img{max-width:100%}table{border-collapse:collapse;font-size:13px;width:100%;margin:20px 0}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:right}th{background:#e8eff5}tr:nth-child(even){background:#f7f9fb}.full{font-size:14px;overflow-wrap:anywhere}@media print{body{margin:0}img{break-inside:avoid}h2{break-after:avoid}}</style><body>'+''.join(parts)+'</body></html>'
-(P/'实验报告.html').write_text(page)
+parts=[f'<h1>How does signal quality affect delay estimates?</h1><p class="sub">NeuroTD · Reviewer 2.7 · Signal-quality study · {time.strftime("%Y-%m-%d")}</p>',
+       '<div class="cards"><div><b>3</b>verified NWB sessions</div><div><b>4,800</b>channel-by-trial records</div><div><b>11,556</b>constructed signal pairs</div><div><b>124</b>records checked against the original estimator</div></div>',
+       '<p class="note">Results cover one participant. Observed recordings use quality proxies. Constructed signals have known shifts and added-noise levels.</p>',
+       '<h2>Data and validation</h2>',table(scope),
+       '<h2>Quality and delay in observed recordings</h2>',picture('01_real_quality_correlations'),table(quality_medians),
+       '<h2>Delay estimates under controlled added noise</h2>',picture('02_controlled_noise'),table(selected),
+       '<h2>Sensitivity across templates</h2>',picture('03_template_sensitivity'),
+       '<h2>Methods and interpretation</h2><div class="full">'+html.escape(text).replace('\n','<br>')+'</div>']
+page='<!doctype html><html lang="en"><meta charset="utf-8"><title>NeuroTD signal quality and delay estimates</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:1150px;margin:40px auto;color:#203047;line-height:1.7;padding:0 24px}h1{font-size:32px}h2{border-bottom:2px solid #c9dbe7;padding-top:24px}.sub{color:#617080}.cards{display:flex;gap:16px}.cards div{background:#edf4f8;border-radius:12px;padding:18px;flex:1}.cards b{display:block;font-size:30px;color:#006a96}.note{border-left:4px solid #d89239;background:#fff7ea;padding:16px}img{max-width:100%}table{border-collapse:collapse;font-size:13px;width:100%;margin:20px 0}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:right}th{background:#e8eff5}tr:nth-child(even){background:#f7f9fb}.full{font-size:14px;overflow-wrap:anywhere}@media print{body{margin:0}img{break-inside:avoid}h2{break-after:avoid}}</style><body>'+''.join(parts)+'</body></html>'
+(P/'report.html').write_text(page)
 print(json.dumps(checks,ensure_ascii=False,indent=2));print(text)

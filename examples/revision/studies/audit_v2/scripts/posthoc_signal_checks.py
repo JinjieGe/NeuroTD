@@ -58,7 +58,7 @@ def part_a(REP):
     n = 0
     for s in (1, 2, 3):
         for t in TRIALS:
-            REP.set_task(f"幅度/量化/截幅/频谱 ses-0{s} trial {t}")
+            REP.set_task(f"Amplitude, quantization, clipping and spectra for ses-0{s} trial {t}")
             with h5py.File(C.NWB[s], "r") as f:
                 x = np.asarray(f["acquisition/ecephys.lfp/data"][t * C.TRIAL_LEN:(t + 1) * C.TRIAL_LEN, :])
                 m = np.asarray(f["acquisition/ecephys.ieeg/data"][t * 16000:(t + 1) * 16000, :])
@@ -77,7 +77,7 @@ def part_a(REP):
                     row[f"power_frac_{lo}_{hi}Hz"] = float(P[(fr >= lo) & (fr < hi), c].sum() / tot[c])
                 rows.append(row)
             n += 1
-            REP.set_progress(done=n, total=15, unit="试次")
+            REP.set_progress(done=n, total=15, unit="trials")
     df = pd.DataFrame(rows)
     df.to_csv(C.WQC / "posthoc_amplitude_quantization_spectrum.csv", index=False)
     by = df.groupby("label").agg(rms=("rms_data_units", "median"), clip_frac_max=("frac_at_full_scale_200", "max"),
@@ -95,11 +95,11 @@ def part_a(REP):
                 n_channel_trials_clip_ge_1pct=int((df.frac_at_full_scale_200 >= 0.01).sum()),
                 power_frac_1_30Hz_median=float(df["power_frac_1_30Hz"].median()),
                 power_frac_30_3000Hz_median=float((df["power_frac_30_300Hz"] + df["power_frac_300_3000Hz"]).median()))
-    REP.line(f"[A] 微电极 RMS 中位数 {summ['micro_rms_median']:.2f}（数据单位）| 最大绝对值 {summ['micro_abs_max']:.6f} | "
-             f"最小量化步长×32767 = {summ['quantization_step_times_32767_median']:.4f} | 宏电极 RMS 中位数 {summ['macro_rms_median']:.1f}")
-    REP.line(f"[A] 处于 ±200 满量程的样本比例（全体）{summ['frac_samples_at_full_scale_overall']:.2e}；有截幅样本的通道×试次 "
-             f"{summ['n_channel_trials_with_any_clipping']}/480；截幅 ≥1% 的 {summ['n_channel_trials_clip_ge_1pct']}")
-    REP.line(f"[A] 微电极功率比例中位数：1–30 Hz {summ['power_frac_1_30Hz_median']:.3f}；30–3000 Hz {summ['power_frac_30_3000Hz_median']:.3f}")
+    REP.line(f"[A] Median microwire RMS {summ['micro_rms_median']:.2f} (data units) | maximum absolute value {summ['micro_abs_max']:.6f} | "
+             f"minimum quantization step × 32767 = {summ['quantization_step_times_32767_median']:.4f} | median macro RMS {summ['macro_rms_median']:.1f}")
+    REP.line(f"[A] Fraction of samples at ±200 full scale {summ['frac_samples_at_full_scale_overall']:.2e} | channel-trials with clipping: "
+             f"{summ['n_channel_trials_with_any_clipping']}/480, of which {summ['n_channel_trials_clip_ge_1pct']} have ≥1% clipped samples")
+    REP.line(f"[A] Median microwire power fractions: 1–30 Hz {summ['power_frac_1_30Hz_median']:.3f}, 30–3000 Hz {summ['power_frac_30_3000Hz_median']:.3f}")
     return summ
 
 
@@ -112,13 +112,13 @@ def part_b(REP):
         for s in (1, 2, 3):
             for t in TRIALS:
                 tasks.append((s, t, (t + 25) % 50, int(r.channel_i), int(r.channel_j), f"{r.label_i}–{r.label_j}"))
-    REP.line(f"[B] 原函数（W=1001, H=500, 矩形窗, continuous=False）在“不同试次配对”上估计延迟：{len(tasks)} 个试次×通道对，"
-             f"{C.N_WORKERS} 个进程")
+    REP.line(f"[B] Original estimator (W=1001, H=500, rectangular window, continuous=False) on mismatched trials: {len(tasks)} trial-by-pair combinations, "
+             f"{C.N_WORKERS} processes")
     out = []
     rt = RateTracker(min_units=C.N_WORKERS, min_seconds=10)
     last = 0
     n_fail = 0
-    REP.set_progress(done=0, total=len(tasks), unit="对")
+    REP.set_progress(done=0, total=len(tasks), unit="pairs")
     with mp.get_context("spawn").Pool(C.N_WORKERS) as pool:
         it = pool.imap_unordered(_delay_task, tasks)
         k = 0
@@ -133,7 +133,7 @@ def part_b(REP):
             s, ti, tj, ci, cj, lab = res["task"]
             if not res["ok"] or res["shifts"].size != 508:
                 n_fail += 1
-                REP.line(f"[B] 错误：ses-0{s} {lab} trial {ti}/{tj}；记录为失败。原因：{(res['error'] or 'size')[-300:]}")
+                REP.line(f"[B] Error: ses-0{s} {lab} trials {ti}/{tj}, recorded as failed. Cause: {(res['error'] or 'size')[-300:]}")
                 continue
             sh = res["shifts"]
             tidx = int(np.flatnonzero((meta.session == f"ses-0{s}").to_numpy() & (meta.trial_pos == ti).to_numpy())[0])
@@ -151,11 +151,11 @@ def part_b(REP):
                             matched_mean_abs_nonzero_ms=float(b[b > 0].mean()) if (b > 0).any() else np.nan,
                             matched_boundary_fraction=float(np.mean(np.abs(same) == 500)),
                             seconds=res["seconds"]))
-            REP.set_progress(done=k, total=len(tasks), unit="对", extra=f"失败 {n_fail}")
+            REP.set_progress(done=k, total=len(tasks), unit="pairs", extra=f"failed {n_fail}")
             REP.set_task(f"ses-0{s} {lab} trial {ti} × trial {tj}")
             if time.time() - last >= 10 or k == len(tasks):
                 last = time.time()
-                REP.line(f"[B] 已完成 {k}/{len(tasks)} 对 | 失败 {n_fail} | {rt.text(k, len(tasks), '对')}")
+                REP.line(f"[B] Completed {k}/{len(tasks)} pairs | failures {n_fail} | {rt.text(k, len(tasks), 'pairs')}")
     df = pd.DataFrame(out)
     df.to_csv(C.WQC / "posthoc_mismatched_trial_delays.csv", index=False)
     summ = df.groupby(["pair", "region", "selection_reason"]).agg(
@@ -167,47 +167,47 @@ def part_b(REP):
         mismatched_boundary=("mismatched_boundary_fraction", "mean")).reset_index()
     summ.to_csv(C.WQC / "posthoc_mismatched_trial_delays_summary.csv", index=False)
     for r in summ.itertuples():
-        REP.line(f"[B] {r.pair:<10} {r.selection_reason:<10} 同试次：零值 {r.matched_zero:.2f} 非零均值 {r.matched_mean_abs_ms:.2f} ms | "
-                 f"不同试次：零值 {r.mismatched_zero:.2f} 非零均值 {r.mismatched_mean_abs_ms:.2f} ms")
+        REP.line(f"[B] {r.pair:<10} {r.selection_reason:<10} same trial: zero fraction {r.matched_zero:.2f}, mean nonzero delay {r.matched_mean_abs_ms:.2f} ms | "
+                 f"mismatched trials: zero fraction {r.mismatched_zero:.2f}, mean nonzero delay {r.mismatched_mean_abs_ms:.2f} ms")
     return dict(n_tasks=len(tasks), n_failed=n_fail)
 
 
 def update_findings(a):
     F = pd.read_csv(C.ELE / "electrode_findings.csv")
     i = F.index[F.id == "E11"][0]
-    F.loc[i, "category"] = "存在明确冲突"
+    F.loc[i, "category"] = "conflicting evidence"
     F.loc[i, "finding"] = (
-        f"ecephys.lfp 声明 unit=volts、conversion=1.0，但数值的最小量化步长 ×32767 = {a['quantization_step_times_32767_median']:.3f}，"
-        f"最大绝对值 {a['micro_abs_max']:.4f}，RMS 中位数约 {a['micro_rms_median']:.1f}（宏电极约 {a['macro_rms_median']:.0f}）。"
-        "按 volts 解释，微电极 RMS 为数伏，物理上不可能；数值形式与“int16 按 ±200 满量程换算”的导出一致（单位可能为 µV，未确认）。")
-    F.loc[i, "evidence"] = "NWB data 属性；waveform_qc/posthoc_amplitude_quantization_spectrum.csv（事后补充检查）"
-    F.loc[i, "impact"] = ("延迟估计只依赖相对波形，不受线性单位影响；但 ±200 处的截幅会改变波形，需报告截幅比例；"
-                          "单位与换算需作者确认")
+        f"ecephys.lfp declares volts and conversion=1.0, but the minimum quantization step ×32767 is {a['quantization_step_times_32767_median']:.3f}, "
+        f"with maximum absolute value {a['micro_abs_max']:.4f} and median RMS about {a['micro_rms_median']:.1f} (macro about {a['macro_rms_median']:.0f}). "
+        "An RMS of several volts is physically implausible for these microwires. The numerical format is consistent with int16 scaled to ±200 full scale, possibly µV pending confirmation.")
+    F.loc[i, "evidence"] = "NWB data attributes and waveform_qc/posthoc_amplitude_quantization_spectrum.csv (post hoc)"
+    F.loc[i, "impact"] = ("A common linear change of units preserves the delay estimate, but clipping at ±200 changes the waveform. Report the clipping fraction. "
+                          "The authors need to confirm the units and conversion.")
     extra = pd.DataFrame([dict(
-        id="E13", topic="微电极信号的频谱与跨束相关（事后补充）", category="当前证据不足、需作者确认",
-        finding=(f"微电极 1–30 Hz 功率占比中位数 {a['power_frac_1_30Hz_median']:.3f}，30–3000 Hz 占 {a['power_frac_30_3000Hz_median']:.3f}；"
-                 "低通 200 Hz 后，跨电极束的微电极通道零时差相关接近 0，微电极与任何宏触点（包括同一电极 1 号触点）的相关也接近 0；"
-                 "同一束内的相邻微电极则相关较高（0.3–0.7），且互相关峰在 0 滞后。"),
-        evidence="waveform_qc/micro_vs_micro_correlation_lowpass200Hz.csv、micro_vs_macro_correlation_lowpass200Hz.csv、posthoc_amplitude_quantization_spectrum.csv",
-        impact=("可能的解释包括：微电极数据经过高通或不同参考处理、微电极以束内参考记录、或导出转换问题；"
-                "这些解释都未得到证实。若跨束信号没有共同成分，跨束通道对的延迟估计可能主要反映噪声而非耦合（见不同试次配对诊断）"))])
+        id="E13", topic="Microwire spectra and cross-bundle correlation (post hoc)", category="insufficient evidence; author confirmation needed",
+        finding=(f"Median microwire power fractions were {a['power_frac_1_30Hz_median']:.3f} at 1–30 Hz and {a['power_frac_30_3000Hz_median']:.3f} at 30–3000 Hz. "
+                 "After low-pass filtering at 200 Hz, zero-lag correlations between microwires in different bundles and between microwires and any macro contact (including the same-shaft first contact) were close to zero. "
+                 "Neighbouring microwires within a bundle had higher correlations (0.3–0.7) and peaked at zero lag."),
+        evidence="waveform_qc/micro_vs_micro_correlation_lowpass200Hz.csv, micro_vs_macro_correlation_lowpass200Hz.csv, posthoc_amplitude_quantization_spectrum.csv",
+        impact=("Possible explanations include high-pass filtering, alternative or within-bundle referencing, and export conversion. "
+                "These explanations require confirmation. With little shared signal, cross-bundle delay estimates could primarily reflect noise (see mismatched-trial diagnostics)."))])
     F = pd.concat([F[F.id != "E13"], extra], ignore_index=True)
     F.to_csv(C.ELE / "electrode_findings.csv", index=False)
 
 
 def main():
     REP = Reporter(C.OUT, heartbeat_s=10)
-    REP.line("事后补充检查（方案外，由原始波形检查结果引出）启动")
-    REP.start_stage("原始波形质量检查（事后补充）")
+    REP.line("Starting post hoc checks motivated by the raw waveforms")
+    REP.start_stage("Raw waveform quality (post hoc)")
     try:
         a = part_a(REP)
         b = part_b(REP)
         update_findings(a)
         json.dump(dict(amplitude=a, mismatched=b), open(C.WQC / "posthoc_summary.json", "w"), indent=2)
-        REP.end_stage("完成")
+        REP.end_stage("completed")
     except Exception as e:  # noqa: BLE001
-        REP.line(f"错误：{e}\n{traceback.format_exc()}")
-        REP.end_stage("失败", note=str(e)[:200])
+        REP.line(f"Error: {e}\n{traceback.format_exc()}")
+        REP.end_stage("failed", note=str(e)[:200])
         raise
     finally:
         REP.close()

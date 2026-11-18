@@ -87,9 +87,9 @@ HIST_MEDIANS = {"Amygdala": 9.28125, "Hippocampus": 10.5, "Middle Temporal Gyrus
 HIST_TOTAL_NONZERO = 4108812
 
 STAGES = [
-    ("s1", "环境与输入文件检查"), ("s2", "旧检查点核验与复用"), ("s3", "延迟估计"),
-    ("s4", "试次和脑区汇总"), ("s5", "原始 Welch 对照"), ("s6", "bootstrap 与敏感性分析"),
-    ("s7", "绘图与报告"), ("s8", "输出完整性检查"),
+    ("s1", "Environment and input checks"), ("s2", "Verify and reuse earlier checkpoints"), ("s3", "Delay estimation"),
+    ("s4", "Trial and region summaries"), ("s5", "Original Welch comparisons"), ("s6", "Bootstrap and sensitivity analysis"),
+    ("s7", "Figures and report"), ("s8", "Output integrity checks"),
 ]
 REP: Reporter | None = None
 RUN_STATE_PATH = OUT / "run_state.json"
@@ -185,10 +185,10 @@ def run_pair_tasks(tasks, label, on_done, expected_total=None, reused=0):
     n_ok = n_fail = 0
     windows = 0
     last_print = 0.0
-    REP.set_progress(done=0, total=len(tasks), unit="对")
-    REP.set_task(f"启动 {N_WORKERS} 个 spawn 工作进程")
+    REP.set_progress(done=0, total=len(tasks), unit="pairs")
+    REP.set_task(f"Starting {N_WORKERS} workers using the spawn method")
     with make_pool() as pool:
-        REP.set_task(f"已提交 {len(tasks)} 对，等待首个结果")
+        REP.set_task(f"Submitted {len(tasks)} pairs; waiting for the first result")
         for res in pool.imap_unordered(_reestimate, tasks, chunksize=1):
             ses, seg, k, ci, cj = res["task"]
             passed = res["ok"] and on_done(res)
@@ -197,20 +197,20 @@ def run_pair_tasks(tasks, label, on_done, expected_total=None, reused=0):
                 windows += int(res["shifts"].size)
             else:
                 n_fail += 1
-                REP.line(f"[{label}] 错误/不一致：会话 ses-0{ses} 试次 {seg} 对 #{k} ({ci},{cj})。"
-                         f"处理：记录为失败，本阶段继续，结束时报告。原因：{(res['error'] or 'check failed')[-400:]}")
-            REP.set_progress(done=n_ok, total=len(tasks), unit="对",
-                             extra=f"失败 {n_fail}")
+                REP.line(f"[{label}] Error or discrepancy: ses-0{ses}, trial {seg}, pair #{k} ({ci},{cj}). "
+                         f"Recording failure and continuing this stage; failures will be reported at the end. Cause: {(res['error'] or 'check failed')[-400:]}")
+            REP.set_progress(done=n_ok, total=len(tasks), unit="pairs",
+                             extra=f"failed {n_fail}")
             REP.set_task(f"ses-0{ses} trial={seg} pair=({ci},{cj})")
             now = time.time()
             if now - last_print >= 10 or n_ok + n_fail == len(tasks):
                 last_print = now
                 pct = 100 * n_ok / max(len(tasks), 1)
                 REP.line(f"[{label}]\n"
-                         f"会话 {ses}/3 | 试次 {seg + 1}/50 | 最近完成：pair #{k} ({ci},{cj})\n"
-                         f"本次完成 {n_ok}/{len(tasks)} 对（{pct:.1f}%）| 已复用 {reused} 对 | 已完成窗口 {windows}\n"
-                         f"{rt.text(n_ok + n_fail, len(tasks), '对')}\n"
-                         f"失败/待重试：{n_fail}")
+                         f"Session {ses}/3 | trial {seg + 1}/50 | last completed pair #{k} ({ci},{cj})\n"
+                         f"Completed {n_ok}/{len(tasks)} pairs ({pct:.1f}%) | reused {reused} pairs | completed {windows} windows\n"
+                         f"{rt.text(n_ok + n_fail, len(tasks), 'pair')}\n"
+                         f"Failed/pending retry: {n_fail}")
             REP.event("pair_done", label=label, session=ses, trial=seg, pair=k, ci=ci, cj=cj,
                       ok=bool(passed), seconds=round(res["seconds"], 3), done=n_ok, failed=n_fail, total=len(tasks))
     REP.set_task(None)
@@ -231,8 +231,8 @@ def stage_s1():
         env["hardware"] = f"unavailable: {e}"
     env["git"] = "not a git repository (no .git in workspace or parents); COMMIT UNKNOWN"
     REP.line(f"Python {sys.version.split()[0]} | numpy {env['numpy']} | scipy {env['scipy']} | pandas {env['pandas']} "
-             f"| pynwb {env['pynwb']} | os.cpu_count={os.cpu_count()} | 并行进程 {N_WORKERS}")
-    REP.line("Git：工作区不是 git 仓库，COMMIT UNKNOWN；用源码哈希与 NeuroTD-main.zip 对照记录工作区改动。")
+             f"| pynwb {env['pynwb']} | os.cpu_count={os.cpu_count()} | workers {N_WORKERS}")
+    REP.line("Git: the original workspace had no Git metadata (commit unknown). Compare source hashes against NeuroTD-main.zip to identify changes.")
 
     # source hashes and comparison with the downloaded zip and the 2026-10-04 run
     rows = []
@@ -257,8 +257,8 @@ def stage_s1():
     src.to_csv(TAB / "provenance_source_hashes.csv", index=False)
     changed = src[(src["same_as_zip"] == False)]["path"].tolist()  # noqa: E712
     key = src[src["path"].isin(OLD_SRC_HASH)]
-    REP.line(f"源码：{len(src)} 个 .py；与 NeuroTD-main.zip 不同：{len(changed)} 个 {changed[:6]}")
-    REP.line("与 2026-10-04 记录哈希一致：" + ", ".join(f"{Path(r.path).name}={'是' if r.same_as_2026_10_04 else '否'}"
+    REP.line(f"Source: {len(src)} Python files; {len(changed)} differ from NeuroTD-main.zip: {changed[:6]}")
+    REP.line("Hashes agree with the 2026-10-04 record: " + ", ".join(f"{Path(r.path).name}={'yes' if r.same_as_2026_10_04 else 'no'}"
                                                for r in key.itertuples()))
 
     # NWB hashes
@@ -267,7 +267,7 @@ def stage_s1():
     for s, p in NWB.items():
         size = p.stat().st_size
         REP.set_task(f"SHA-256 {p.name}")
-        REP.set_progress(done=0, total=size, unit="字节")
+        REP.set_progress(done=0, total=size, unit="bytes")
         t0 = time.time()
         h = sha256_file(p, on_bytes=lambda d: REP.set_progress(done=d))
         rec = old[old["path"].str.endswith(p.name)]
@@ -275,29 +275,29 @@ def stage_s1():
         nwb_rows.append(dict(session=f"ses-0{s}", path=str(p.relative_to(ROOT)), bytes=size, sha256=h,
                              sha256_recorded_2026_10_04=prev, match=(h == prev),
                              mtime=datetime.fromtimestamp(p.stat().st_mtime).isoformat(timespec="seconds")))
-        REP.line(f"NWB {p.name}: {size:,} 字节 | SHA-256 {h[:16]}… | 与 10-04 记录一致：{h == prev} | {time.time() - t0:.1f} s")
+        REP.line(f"NWB {p.name}: {size:,} bytes | SHA-256 {h[:16]}… | matches October 4: {h == prev} | {time.time() - t0:.1f} s")
         if h != prev:
-            REP.line(f"警告：{p.name} 哈希与 10-04 记录不一致，旧检查点不能直接复用。")
+            REP.line(f"Warning: {p.name} differs from its October 4 hash. Verify the earlier checkpoints before reuse.")
     REP.set_task(None)
     pd.DataFrame(nwb_rows).to_csv(TAB / "provenance_nwb_sha256.csv", index=False)
 
     # checkpoint manifest
     files = sorted(OLD_CKPT.glob("*"))
-    REP.set_progress(done=0, total=len(files), unit="文件")
+    REP.set_progress(done=0, total=len(files), unit="files")
     man = []
     for i, p in enumerate(files):
         man.append(dict(file=p.name, bytes=p.stat().st_size, sha256=sha256_file(p),
                         mtime=datetime.fromtimestamp(p.stat().st_mtime).isoformat(timespec="seconds")))
         REP.set_progress(done=i + 1)
     pd.DataFrame(man).to_csv(TAB / "provenance_old_checkpoint_manifest.csv", index=False)
-    REP.line(f"旧检查点目录 {OLD_CKPT.relative_to(ROOT)}：{len(files)} 个文件已登记哈希。")
-    REP.line("原论文逐会话结果 subject_1_session_{1,2,3}__neurotd_df_results.csv：全盘搜索未找到（见报告），不可用作输入。")
+    REP.line(f"Earlier checkpoint directory {OLD_CKPT.relative_to(ROOT)}: recorded hashes for {len(files)} files.")
+    REP.line("The original per-session files subject_1_session_{1,2,3}__neurotd_df_results.csv were unavailable in the historical search (see report).")
 
     # ---- representative benchmarks for the time estimate
-    REP.line("基准测试 1：原函数，ses-01 trial 0 的 6 个通道对，6 进程并行（实测并行吞吐，不按核数推算）。")
+    REP.line("Benchmark 1: original estimator, six channel pairs from ses-01 trial 0, six workers. Throughput is measured in parallel.")
     pairs = pd.read_csv(OLD_CKPT / "sub-01_ses-01_pairs.csv")
     bench_tasks = [(1, 0, k, int(pairs.channel_i[k]), int(pairs.channel_j[k])) for k in range(6)]
-    REP.set_task("基准测试：6 对原函数并行")
+    REP.set_task("Benchmark: six parallel original-estimator evaluations")
     with make_pool() as pool:
         t0 = time.time()
         res = pool.map(_reestimate, bench_tasks, chunksize=1)
@@ -307,10 +307,10 @@ def stage_s1():
                       for r in res)
     per_pair_serial = float(np.mean([r["seconds"] for r in res]))
     per_pair_wall = par_wall / len(bench_tasks)
-    REP.line(f"  6 对墙钟 {par_wall:.1f} s → 并行吞吐 {per_pair_wall:.2f} 秒/对；单对 CPU 时间均值 {per_pair_serial:.2f} s；"
-             f"与旧检查点逐窗口一致：{bench_match}")
+    REP.line(f"  Wall time for six pairs {par_wall:.1f} s; parallel throughput {per_pair_wall:.2f} s/pair, mean CPU time {per_pair_serial:.2f} s/pair; "
+             f"all windows match earlier checkpoints: {bench_match}")
 
-    REP.line("基准测试 2：bootstrap，合成 150 试次×4 脑区，一批 5000 次（含回归变体）。")
+    REP.line("Benchmark 2: one batch of 5000 bootstrap draws on 150 synthetic trials and four regions, including regression variants.")
     rng = np.random.default_rng(0)
     T = 150
     S = rng.gamma(5, 2, (T, 4)) * 1000
@@ -328,27 +328,27 @@ def stage_s1():
     sc.session_equal_means(C, sc.pairwise_diffs(S / N), w, masks)
     sc.adjusted_regression(C, sc.pairwise_diffs(S / N), X, 3)
     t_batch_pooled = time.time() - t0
-    REP.line(f"  一批 5000 次（6 个变体）{t_batch_pooled:.2f} s")
+    REP.line(f"  One batch of 5000 draws (six variants): {t_batch_pooled:.2f} s")
 
     n_streams = len(SCOPES) * len(LS)
     est = {
-        "1_read_and_check_s": "S1 哈希实测 + S2 元数据约 30 s",
+        "1_read_and_check_s": "Measured S1 hashing plus about 30 s for S2 metadata",
         "2_delay_reestimation_s": round(96 * per_pair_wall, 1),
         "2b_full_recompute_if_needed_s": round(9000 * per_pair_wall, 1),
         "3_bootstrap_s": round(n_streams * (B_MAIN / BATCH) * t_batch_pooled, 1),
         "3b_bootstrap_refine_per_setting_s": round((B_REFINE / BATCH) * t_batch_pooled, 1),
-        "4_figures_report_s": "约 120–300 s（未基准测试，粗估）",
+        "4_figures_report_s": "About 120–300 s (rough estimate without a benchmark)",
         "per_pair_wall_s_6workers": per_pair_wall, "per_pair_cpu_s": per_pair_serial,
         "bootstrap_batch_s": t_batch_pooled,
     }
     (OUT / "logs/time_estimate_at_start.json").write_text(json.dumps(est, indent=2, ensure_ascii=False))
-    REP.line("开始时耗时估计（预计）：")
-    REP.line(f"  1. 数据读取与检查：S1 已实测；S2 元数据读取与检查点核验预计约 30–60 s")
-    REP.line(f"  2. 延迟估计：若旧检查点全部通过，仅抽样重估 96 对 ≈ {fmt_hms(est['2_delay_reestimation_s'])}；"
-             f"若需全部重算 9000 对 ≈ {fmt_hms(est['2b_full_recompute_if_needed_s'])}")
-    REP.line(f"  3. 统计重采样：{n_streams} 组索引流 × {B_MAIN} 次 ≈ {fmt_hms(est['3_bootstrap_s'])}；"
-             f"如触发加密，每个设置 B={B_REFINE} 另需 ≈ {fmt_hms(est['3b_bootstrap_refine_per_setting_s'])}")
-    REP.line("  4. 图表及报告：约 2–5 分钟（粗估）")
+    REP.line("Initial runtime estimates:")
+    REP.line(f"  1. Reading and checks: S1 measured; S2 metadata and checkpoint validation estimated at 30–60 s")
+    REP.line(f"  2. Delay estimation: if all checkpoints pass, re-estimate 96 sampled pairs in about {fmt_hms(est['2_delay_reestimation_s'])}; "
+             f"all 9000 pairs would take about {fmt_hms(est['2b_full_recompute_if_needed_s'])}")
+    REP.line(f"  3. Resampling: {n_streams} index streams × {B_MAIN} draws, about {fmt_hms(est['3_bootstrap_s'])}; "
+             f"if triggered, refining each configuration (B={B_REFINE}) adds about {fmt_hms(est['3b_bootstrap_refine_per_setting_s'])}")
+    REP.line("  4. Figures and report: about 2–5 minutes (rough estimate)")
     env["time_estimate"] = est
     (OUT / "logs/environment.json").write_text(json.dumps(env, indent=2, ensure_ascii=False, default=str))
     save_state(benchmark_pairs_match=bench_match, per_pair_wall_s=per_pair_wall,
@@ -426,9 +426,9 @@ def build_pairs(elec: pd.DataFrame):
 
 def stage_s2():
     infos, elecs, trials_all, pairs_all = [], [], [], []
-    REP.set_progress(done=0, total=3, unit="会话")
+    REP.set_progress(done=0, total=3, unit="sessions")
     for s in (1, 2, 3):
-        REP.set_task(f"pynwb 读取 {NWB[s].name} 元数据与时间戳")
+        REP.set_task(f"Reading metadata and timestamps from {NWB[s].name} with pynwb")
         info, elec, trials, seg_start, seg_end = read_session_metadata(s)
         # match LFP segments to trial rows by start time
         starts = trials["start_time"].to_numpy(float)
@@ -438,7 +438,7 @@ def stage_s2():
             j = int(np.argmin(np.abs(starts - s0)))
             dt = abs(starts[j] - s0)
             if dt > 1e-4 or j in used:
-                raise RuntimeError(f"ses-0{s} segment {k} 未匹配到唯一试次（dt={dt}）")
+                raise RuntimeError(f"ses-0{s} segment {k} has no unique matching trial (dt={dt})")
             used.add(j)
             t = trials.iloc[j]
             rows.append(dict(session=f"ses-0{s}", session_num=s, trial_pos=k, trial_row=j, trial_id=int(t["id"]),
@@ -461,10 +461,10 @@ def stage_s2():
         trials_all.append(tdf)
         pairs_all.append(pairs)
         reg_n = elec[elec.major_region != "unspecific"].groupby("major_region").size().to_dict()
-        REP.line(f"ses-0{s}: data {info['data_shape']} {info['data_dtype']} | 采样率 {info['sampling_rate_hz']:.3f} Hz | "
-                 f"{info['n_segments']} 段×{info['segment_len']} 样本 | 电极表 {info['n_electrode_table_rows']} 行，LFP 引用 "
-                 f"{info['n_lfp_electrode_refs']} 个（等于前 32 行：{info['lfp_refs_equal_first_32_rows']}）| "
-                 f"伪迹试次 {info['n_artifact']} | 脑区通道数 {reg_n} | 区内通道对 {len(pairs)}")
+        REP.line(f"ses-0{s}: data {info['data_shape']} {info['data_dtype']} | sampling rate {info['sampling_rate_hz']:.3f} Hz | "
+                 f"{info['n_segments']} segments × {info['segment_len']} samples | electrode table {info['n_electrode_table_rows']} rows, LFP references "
+                 f"{info['n_lfp_electrode_refs']} (equal to first 32 rows: {info['lfp_refs_equal_first_32_rows']}) | "
+                 f"artifact-flagged trials {info['n_artifact']} | channels by region {reg_n} | within-region pairs {len(pairs)}")
         REP.set_progress(done=s)
     REP.set_task(None)
     elec_df = pd.concat(elecs, ignore_index=True)
@@ -478,15 +478,15 @@ def stage_s2():
     # pairs identical across sessions?
     keycols = ["region", "channel_i", "channel_j", "label_i", "label_j"]
     same_layout = all(pairs_all[0][keycols].equals(p[keycols]) for p in pairs_all[1:])
-    REP.line(f"三个会话通道对布局完全相同：{same_layout}")
+    REP.line(f"Channel-pair layouts identical across three sessions: {same_layout}")
 
     # ---- verify old checkpoints
-    REP.line("核验旧检查点：输入哈希、通道/脑区映射、试次编号与伪迹、形状、整数网格、窗口中心。")
+    REP.line("Checking earlier checkpoints: input hashes, channel/region mapping, trial IDs and artifacts, shapes, integer grid, and window centers.")
     state = load_state()
     centers = expected_centers()
     verdict = []
     total_trials = len(trial_df)
-    REP.set_progress(done=0, total=total_trials, unit="试次")
+    REP.set_progress(done=0, total=total_trials, unit="trials")
     for n, row in enumerate(trial_df.itertuples()):
         s = row.session_num
         p = OLD_CKPT / f"sub-01_ses-0{s}_trial{row.trial_pos:02d}.npz"
@@ -521,10 +521,10 @@ def stage_s2():
         REP.set_progress(done=n + 1)
     vdf = pd.DataFrame(verdict)
     n_pass = int(vdf.passed.sum())
-    REP.line(f"断点续跑/复用核验：已验证 {n_pass} 个试次检查点（{n_pass * 60} 对），可跳过 {n_pass}，"
-             f"仍需处理 {total_trials - n_pass}")
+    REP.line(f"Checkpoint verification: {n_pass} trial checkpoints verified ({n_pass * 60} pairs), {n_pass} can be skipped; "
+             f"{total_trials - n_pass} remain")
     if n_pass < total_trials:
-        REP.line("未通过：" + "; ".join(f"{r.session} t{r.trial_pos}: {r.problems}" for r in vdf[~vdf.passed].itertuples()))
+        REP.line("Failed: " + "; ".join(f"{r.session} t{r.trial_pos}: {r.problems}" for r in vdf[~vdf.passed].itertuples()))
 
     # ---- sample re-estimation (pre-specified, seed 20261031)
     rng = np.random.default_rng(SEED)
@@ -556,8 +556,8 @@ def stage_s2():
             pending.append(t)
         else:
             rows.append((t, np.load(src)["shifts"], "resumed"))
-    REP.line(f"[抽样重估一致性验证] 预定 {len(tasks)} 对（完整试次 {ft.session} trial {ft.trial_pos} 的 60 对 + 36 个随机对）；"
-             f"已有检查点可跳过 {len(rows)}，仍需计算 {len(pending)}")
+    REP.line(f"[Re-estimation check] Prespecified {len(tasks)} pairs (all 60 pairs of {ft.session} trial {ft.trial_pos} plus 36 random pairs); "
+             f"{len(rows)} can reuse checkpoints; {len(pending)} require calculation")
 
     def compare(t, shifts):
         z = np.load(OLD_CKPT / f"sub-01_ses-0{t[0]}_trial{t[1]:02d}.npz")
@@ -584,12 +584,12 @@ def stage_s2():
 
     n_ok = n_fail = 0
     if pending:
-        n_ok, n_fail, _ = run_pair_tasks(pending, "抽样重估一致性验证", on_done, reused=0)
+        n_ok, n_fail, _ = run_pair_tasks(pending, "Sampled re-estimation check", on_done, reused=0)
     rdf = pd.DataFrame(results).sort_values(["session", "trial_pos", "pair_index"])
     rdf.to_csv(TAB / "checkpoint_reestimation_consistency.csv", index=False)
     n_ident = int(rdf.identical.sum())
-    REP.line(f"[抽样重估一致性验证] 结果：{n_ident}/{len(rdf)} 对逐窗口完全一致（每对 508 窗口）；"
-             f"本次计算 {len(pending)} 对，其中检查失败 {n_fail}")
+    REP.line(f"[Re-estimation check] {n_ident}/{len(rdf)} pairs match in every window (508 windows/pair); "
+             f"{len(pending)} pairs computed this run, {n_fail} failed checks")
     reuse_ok = bool(n_ident == len(rdf) and n_pass == total_trials and same_layout)
     save_state(checkpoint_trials_verified=n_pass, checkpoint_trials_total=total_trials,
                reestimate_tasks=len(tasks), reestimate_identical=n_ident, reestimate_computed_now=len(pending),
@@ -598,7 +598,7 @@ def stage_s2():
                n_pairs_per_trial=len(pairs_all[0]), same_layout=same_layout)
     vdf.to_csv(TAB / "old_checkpoint_verification.csv", index=False)
     if not reuse_ok:
-        REP.line("旧检查点未全部通过核验：未通过的试次将在 S3 用原函数重算。")
+        REP.line("Some earlier checkpoints failed verification. S3 will re-estimate those trials with the original estimator.")
 
 
 # ============================================================================ S3
@@ -621,14 +621,14 @@ def stage_s3():
     done_new = {(f"ses-0{p.name[5]}", int(p.stem.split("trial")[1])) for p in new_dir.glob("ses-0*_trial*.npz")}
     todo = sorted(failed - done_new)
     reused_pairs = (len(trial_df) - len(failed)) * n_pairs
-    REP.line(f"实际数据核验后的总量：{len(trial_df)} 试次 × {n_pairs} 对 = {total_pairs} 个试次×通道对，"
-             f"{total_pairs * 508} 个窗口")
-    REP.line(f"断点续跑：需重算试次 {len(failed)}，本运行已完成可跳过 {len(failed & done_new)}，仍需处理 {len(todo)}")
+    REP.line(f"Verified totals: {len(trial_df)} trials × {n_pairs} pairs = {total_pairs} trial/pair records, "
+             f"{total_pairs * 508} windows")
+    REP.line(f"Resuming: {len(failed)} trials require re-estimation, {len(failed & done_new)} already complete, {len(todo)} remain")
     if not todo:
-        REP.line(f"[延迟估计]\n本次新计算 0 对 | 已复用 {reused_pairs} 对（{reused_pairs * 508} 窗口，旧检查点通过核验）\n"
-                 f"抽样重估一致性验证（独立进度见 S2）：{st.get('reestimate_identical')}/{st.get('reestimate_tasks')} 对一致，"
-                 f"其中本次实际计算 {st.get('reestimate_computed_now')} 对，失败 {st.get('reestimate_failed')}\n"
-                 f"跳过的重算工作量：{total_pairs} 对，按实测吞吐约 {fmt_hms(total_pairs * st.get('per_pair_wall_s', np.nan))}")
+        REP.line(f"[Delay estimates]\nNew pairs: 0 | reused {reused_pairs} pairs ({reused_pairs * 508} windows from verified earlier checkpoints)\n"
+                 f"Re-estimation check (reported separately in S2): {st.get('reestimate_identical')}/{st.get('reestimate_tasks')} pairs agree; "
+                 f"{st.get('reestimate_computed_now')} pairs computed this run, {st.get('reestimate_failed')} failures\n"
+                 f"Skipped {total_pairs} pair computations, about {fmt_hms(total_pairs * st.get('per_pair_wall_s', np.nan))} at measured throughput")
     n_new_ok = n_new_fail = 0
     for ses, pos in todo:
         s = int(ses[-1])
@@ -642,16 +642,16 @@ def stage_s3():
             if ok:
                 out[res["task"][2]] = sh.astype(np.int16)
             return ok
-        REP.line(f"[延迟估计] 会话 {s}/3 | 试次 {pos + 1}/50 | 需计算 {len(tasks)} 对")
-        ok, fail, _ = run_pair_tasks(tasks, "延迟估计", on_done, reused=reused_pairs)
+        REP.line(f"[Delay estimates] session {s}/3 | trial {pos + 1}/50 | {len(tasks)} pairs to compute")
+        ok, fail, _ = run_pair_tasks(tasks, "Delay estimation", on_done, reused=reused_pairs)
         n_new_ok += ok
         n_new_fail += fail
         if fail == 0:
             path = new_dir / f"{ses}_trial{pos:02d}.npz"
             np.savez_compressed(path, shifts_samples=np.stack([out[k] for k in range(len(tasks))]))
-            REP.line(f"检查点：已保存 {path.relative_to(OUT)}")
+            REP.line(f"Saved checkpoint {path.relative_to(OUT)}")
         else:
-            REP.line(f"检查点：{ses} trial {pos} 有 {fail} 对失败，未保存，需重试。")
+            REP.line(f"Checkpoint: {ses} trial {pos} had {fail} failed pairs; retry before saving.")
     # consolidate window array
     T = len(trial_df)
     Wv = np.zeros((T, n_pairs, 508), dtype=np.int16)
@@ -660,7 +660,7 @@ def stage_s3():
         newp = new_dir / f"{r.session}_trial{r.trial_pos:02d}.npz"
         if (r.session, r.trial_pos) in failed:
             if not newp.exists():
-                raise RuntimeError(f"{r.session} trial {r.trial_pos} 无可用延迟结果")
+                raise RuntimeError(f"{r.session} trial {r.trial_pos} has no available delay result")
             Wv[t] = np.load(newp)["shifts_samples"]
             src.append("recomputed_this_run")
         else:
@@ -669,7 +669,7 @@ def stage_s3():
     np.savez_compressed(CK / "windows_all_trials.npz", shifts_samples=Wv,
                         session=trial_df.session.to_numpy().astype(str), trial_pos=trial_df.trial_pos.to_numpy(),
                         window_centers=expected_centers())
-    REP.line(f"检查点：已保存 checkpoints/windows_all_trials.npz，形状 {Wv.shape}，成功")
+    REP.line(f"Saved checkpoints/windows_all_trials.npz, shape {Wv.shape}")
     save_state(pairs_reused=reused_pairs, pairs_recomputed=n_new_ok, pairs_recompute_failed=n_new_fail,
                trial_sources=pd.Series(src).value_counts().to_dict(), total_pair_trials=total_pairs,
                total_windows=int(Wv.size))
@@ -688,7 +688,7 @@ def stage_s4():
     nz = absms > NEAR_ZERO
     fin = np.isfinite(ms)
     rows, prow = [], []
-    REP.set_progress(done=0, total=len(trial_df), unit="试次")
+    REP.set_progress(done=0, total=len(trial_df), unit="trials")
     for t, tr in enumerate(trial_df.itertuples()):
         for k in range(len(pr)):
             a = absms[t, k][nz[t, k]]
@@ -732,12 +732,12 @@ def stage_s4():
                         N_direct=int(direct.size), N_from_table=int(sub.N_nonzero.sum())))
     cdf = pd.DataFrame(chk)
     cdf.to_csv(TAB / "check_summary_reproduces_pooled_means.csv", index=False)
-    REP.line("汇总表还原池化均值：" + "; ".join(f"{sc.REGION_SHORT[r.region]} {r.pooled_from_S_N:.6f} ms "
-                                         f"(|差| {r.abs_diff:.1e}, N 一致 {r.N_direct == r.N_from_table})"
+    REP.line("Pooled means recovered from summary: " + "; ".join(f"{sc.REGION_SHORT[r.region]} {r.pooled_from_S_N:.6f} ms "
+                                         f"(|difference| {r.abs_diff:.1e}, counts agree {r.N_direct == r.N_from_table})"
                                          for r in cdf.itertuples()))
     nmiss = int((pts.N_nonzero == 0).sum())
-    REP.line(f"试次×脑区行 {len(trs)}；试次×通道对行 {len(pts)}；无非零窗口的试次×通道对 {nmiss}；"
-             f"|shift|=500 边界窗口 {int(trs.n_boundary_500.sum())}")
+    REP.line(f"Trial/region rows {len(trs)}; trial/channel-pair rows {len(pts)}; trial/pairs without nonzero windows {nmiss}; "
+             f"windows at |shift|=500 boundary {int(trs.n_boundary_500.sum())}")
     save_state(n_trial_pair_no_nonzero=nmiss)
 
 
@@ -793,9 +793,9 @@ def stage_s5():
     rdf = pd.DataFrame(ref)
     rdf.to_csv(TAB / "historical_reference_check.csv", index=False)
     for r in rdf.itertuples():
-        REP.line(f"历史参考核对 {r.item}: 历史 {r.historical} | 本次 {r.this_run} | 一致 {r.match}")
+        REP.line(f"Reference check {r.item}: historical {r.historical} | current {r.this_run} | match {r.match}")
     for r in wdf[wdf.scope == "pooled_3_sessions"].itertuples():
-        REP.line(f"窗口级 Welch（仅审计）{sc.REGION_SHORT[r.region_A]}-{sc.REGION_SHORT[r.region_B]}: "
+        REP.line(f"Window-level Welch (audit only) {sc.REGION_SHORT[r.region_A]}-{sc.REGION_SHORT[r.region_B]}: "
                  f"Δ={r.difference_ms:+.4f} ms t={r.welch_t:.2f} Bonferroni p={r.bonferroni_p:.3g}")
     # subsample for violin display, saved for re-plotting
     rng = np.random.default_rng(0)
@@ -873,7 +873,7 @@ def run_synthetic_validation():
 
     def rec(name, ok, detail):
         rows.append(dict(check=name, passed=bool(ok), detail=detail))
-        REP.line(f"  [合成核验] {name}: {'通过' if ok else '未通过'} | {detail}")
+        REP.line(f"  [Synthetic check] {name}: {'pass' if ok else 'fail'} | {detail}")
 
     rng = np.random.default_rng(123)
     T = 150
@@ -889,11 +889,11 @@ def run_synthetic_validation():
         inblock = np.ones(49, bool)
         inblock[np.arange(L - 1, 49, L)] = False
         ok2 = (steps[:, inblock] == 1).all()
-        rec(f"L={L} 抽样不跨会话且块内为会话内循环连续", ok and ok2, f"2000 次；块内相邻步长均为 +1 (mod 50)：{ok2}")
+        rec(f"L={L} sampling stays within session; each circular block is contiguous", ok and ok2, f"2000 draws; all within-block adjacent steps are +1 (mod 50): {ok2}")
     # 2 same seed reproducible
     a = sc.stratified_indices(np.random.default_rng(np.random.SeedSequence([SEED, 0, 5])), slices, 5, 1000)
     b = sc.stratified_indices(np.random.default_rng(np.random.SeedSequence([SEED, 0, 5])), slices, 5, 1000)
-    rec("相同随机种子可复现", np.array_equal(a, b), "两次生成索引逐元素相同")
+    rec("Same seed reproduces the same indices", np.array_equal(a, b), "Both index arrays match element by element")
     # 3 identical regions -> zero difference in every resample; same index for all regions
     S1 = rng.gamma(5, 2, (T, 1)) * 1000
     N1 = rng.integers(500, 1500, (T, 1)).astype(float)
@@ -902,8 +902,8 @@ def run_synthetic_validation():
     d = sc.pairwise_diffs(sc.pooled_means(C, S, N, np.ones(T)))
     dh = sc.pairwise_diffs(sc.pooled_means(np.ones((1, T)), S, N, np.ones(T)))[0]
     summ = sc.summarize(dh, d)
-    rec("四脑区数据相同 → 每次重采样差值恰为 0（证明四脑区共用同一试次索引）", np.all(d == 0) and np.all(dh == 0),
-        f"max|Δ*|={np.abs(d).max()}；p_raw={summ[0]['raw_p']}（Δ_hat=0 时 p=1，不产生虚假差异）")
+    rec("Identical regional inputs give zero contrast on every draw (all four regions share each trial index)", np.all(d == 0) and np.all(dh == 0),
+        f"max|Δ*|={np.abs(d).max()}; p_raw={summ[0]['raw_p']} (p=1 when Δ_hat=0)")
     # 4 swapping order flips the sign only
     S = rng.gamma(5, 2, (T, 4)) * 1000
     N = rng.integers(500, 1500, (T, 4)).astype(float)
@@ -913,7 +913,7 @@ def run_synthetic_validation():
     mh = sc.pooled_means(np.ones((1, T)), S, N, np.ones(T))[0]
     s_ab = sc.summarize(np.array([mh[0] - mh[1]]), d_ab[:, None])[0]
     s_ba = sc.summarize(np.array([mh[1] - mh[0]]), d_ba[:, None])[0]
-    rec("交换比较顺序只改变符号", np.allclose(d_ab, -d_ba) and s_ab["raw_p"] == s_ba["raw_p"] and
+    rec("Reversing contrast order reverses only the sign", np.allclose(d_ab, -d_ba) and s_ab["raw_p"] == s_ba["raw_p"] and
         np.isclose(s_ab["ci95_low"], -s_ba["ci95_high"]), f"p {s_ab['raw_p']:.4g} vs {s_ba['raw_p']:.4g}")
     # 5 zero counts / all-zero region / missing values
     N0 = N.copy(); S0 = S.copy()
@@ -922,22 +922,22 @@ def run_synthetic_validation():
     exp = S0[:, 1].sum() / N0[:, 1].sum()
     N0[:, 2] = 0; S0[:, 2] = 0
     m2 = sc.pooled_means(np.ones((1, T)), S0, N0, np.ones(T))[0, 2]
-    rec("计数为零的试次不贡献；整个脑区 N=0 → 均值为 NaN（不当作 0）", np.isclose(m1, exp) and np.isnan(m2),
-        f"单试次 N=0 时池化均值 {m1:.4f}=期望 {exp:.4f}；全零脑区 → {m2}")
+    rec("Trials with zero counts contribute nothing; a regional N=0 gives a missing mean", np.isclose(m1, exp) and np.isnan(m2),
+        f"Pooled mean with one zero-count trial {m1:.4f}, expected {exp:.4f}; all-zero region gives {m2}")
     Vm = S / N
     Vm[0:50, 0] = np.nan
     val = sc.session_equal_means(np.ones((1, T)), Vm, np.ones(T), masks)[0, 0]
-    rec("会话内某脑区全部缺失 → 等权指标为 NaN 并计为无效重采样（不填零）", np.isnan(val), f"值={val}")
+    rec("An entirely missing region in a session gives a missing equal-weight estimate and an invalid draw", np.isnan(val), f"value={val}")
     Vm = S / N
     Vm[7, 0] = np.nan
     val = sc.session_equal_means(np.ones((1, T)), Vm, np.ones(T), masks)[0, 0]
     expv = np.mean([np.nanmean(Vm[0:50, 0]), Vm[50:100, 0].mean(), Vm[100:150, 0].mean()])
-    rec("单个缺失值被跳过而非填零", np.isclose(val, expv), f"{val:.5f} vs {expv:.5f}")
+    rec("A single missing value is skipped", np.isclose(val, expv), f"{val:.5f} vs {expv:.5f}")
     # 6 artifact weighting keeps grid and removes contribution
     w = np.ones(T); w[[4, 60]] = 0
     m3 = sc.pooled_means(np.ones((1, T)), S, N, w)[0, 0]
     keep = w > 0
-    rec("伪迹权重为 0 等价于删除该试次的 S、N", np.isclose(m3, S[keep, 0].sum() / N[keep, 0].sum()), f"{m3:.5f}")
+    rec("Zero artifact weight is equivalent to dropping that trial's S and N", np.isclose(m3, S[keep, 0].sum() / N[keep, 0].sum()), f"{m3:.5f}")
     # 7 calibration: null AR(1) trial series, iid vs block bootstrap rejection rate (small, illustrative)
     rej = {1: 0, 5: 0}
     nrep = 300
@@ -959,8 +959,8 @@ def run_synthetic_validation():
             mu = (Cb @ Ss) / (Cb @ Ns)
             p = sc.summarize(np.array([dh]), (mu[:, 0] - mu[:, 1])[:, None], n_tests=1)[0]["raw_p"]
             rej[L] += p < 0.05
-    rec("零假设 AR(1)(φ=0.6) 合成序列的 5% 名义拒绝率（示意）", True,
-        f"L=1: {rej[1] / nrep:.3f}；L=5: {rej[5] / nrep:.3f}（{nrep} 次重复，B=999；仅说明依赖会使 L=1 偏宽松）")
+    rec("Illustrative rejection rate at 5% for synthetic AR(1) null series (φ=0.6)", True,
+        f"L=1: {rej[1] / nrep:.3f}; L=5: {rej[5] / nrep:.3f} ({nrep} replicates, B=999; dependence can make L=1 liberal)")
     df = pd.DataFrame(rows)
     df.to_csv(SYN / "synthetic_validation_results.csv", index=False)
     return bool(df.passed.all())
@@ -979,10 +979,10 @@ def acf_pooled(x, sess, maxlag=15):
 
 
 def stage_s6():
-    REP.line("步骤 1/4：统计程序合成数据核验（结果单独保存于 synthetic_validation/）")
+    REP.line("Step 1/4: validate statistical procedures on synthetic data (saved separately in synthetic_validation/)")
     ok = run_synthetic_validation()
     if not ok:
-        raise RuntimeError("合成核验未全部通过，停止 bootstrap 阶段")
+        raise RuntimeError("Synthetic checks failed. Stopping the bootstrap stage.")
     meta, S, N, Nall, MED, V = load_trial_arrays()
     X, xnames = design_matrix(meta)
     T = len(meta)
@@ -992,21 +992,21 @@ def stage_s6():
     slices_of = {s: (int(np.flatnonzero(sess_num == s)[0]), int(np.flatnonzero(sess_num == s)[-1]) + 1) for s in (1, 2, 3)}
     for s, (a, b) in slices_of.items():
         assert b - a == 50 and np.array_equal(meta.trial_pos.to_numpy()[a:b], np.arange(50))
-    REP.line(f"F 变体设计矩阵列：{xnames}")
+    REP.line(f"Variant F design matrix columns: {xnames}")
 
     settings = []
     for scope, (code, sessions) in SCOPES.items():
         for L in LS:
             settings.append((scope, code, sessions, L, VARIANTS_POOLED if scope == "pooled_3_sessions" else VARIANTS_SUB))
     n_variant_settings = sum(len(s[4]) for s in settings)
-    REP.line(f"步骤 2/4：bootstrap，{len(settings)} 组索引流（scope × L），共 {n_variant_settings} 个“数据处理版本×范围×L”设置，"
-             f"每组 B={B_MAIN}，批大小 {BATCH}")
+    REP.line(f"Step 2/4: bootstrap {len(settings)} index streams (scope × L) across {n_variant_settings} processing variant × scope × L settings, "
+             f"B={B_MAIN} per setting, batch size {BATCH}")
     bdir = CK / "bootstrap"
     bdir.mkdir(exist_ok=True)
     done_files = {p.name for p in bdir.glob("*.npz")}
     names = [f"{sc_}_L{L}_B{B_MAIN}_main.npz" for sc_, _, _, L, _ in settings]
     n_skip = sum(n in done_files for n in names)
-    REP.line(f"断点续跑：已有 bootstrap 检查点 {n_skip}，可跳过 {n_skip}，仍需处理 {len(settings) - n_skip}")
+    REP.line(f"Resuming: {n_skip} bootstrap checkpoints, {n_skip} can be skipped, {len(settings) - n_skip} remain")
 
     all_rows = []
     t_stage = time.time()
@@ -1023,7 +1023,7 @@ def stage_s6():
             zz = np.load(fname)
             boots = {v: zz[v] for v in variants}
             rd = int(zz["F_rank_def"]) if "F_rank_def" in zz.files else 0
-            REP.line(f"[bootstrap] 复用检查点 {fname.name}")
+            REP.line(f"[bootstrap] Reusing checkpoint {fname.name}")
         else:
             rng = np.random.default_rng(np.random.SeedSequence(seed_key))
             boots = {v: np.empty((B, 6)) for v in variants}
@@ -1039,17 +1039,17 @@ def stage_s6():
                 for v in variants:
                     boots[v][start:start + b] = res[v]
                 done = start + b
-                REP.set_progress(done=done, total=B, unit="次重复",
-                                 extra=f"设置 {k_set}/{n_set}")
+                REP.set_progress(done=done, total=B, unit="replicates",
+                                 extra=f"setting {k_set}/{n_set}")
                 el = time.time() - t0
                 if time.time() - last >= 10 or done == B:
                     last = time.time()
                     eta = el / done * (B - done)
-                    REP.line(f"[bootstrap] 版本 {'+'.join(v.split('_')[0] for v in variants)}（共用索引）| 范围 {scope} | "
-                             f"L={L} | 重复 {done}/{B} | 设置流 {k_set}/{n_set} 进行中 | 本设置已运行 {fmt_hms(el)} | "
-                             f"本设置预计剩余约 {fmt_hms(eta)}（预计）")
+                    REP.line(f"[bootstrap] variant {'+'.join(v.split('_')[0] for v in variants)} (shared indices) | scope {scope} | "
+                             f"L={L} | draws {done}/{B} | setting stream {k_set}/{n_set} | elapsed {fmt_hms(el)} | "
+                             f"estimated remaining {fmt_hms(eta)}")
             np.savez_compressed(fname, F_rank_def=rd, seed_key=np.array(seed_key), **boots)
-            REP.line(f"检查点：已保存 checkpoints/bootstrap/{fname.name}，成功")
+            REP.line(f"Saved bootstrap checkpoint checkpoints/bootstrap/{fname.name}")
         rows = []
         for v in variants:
             summ = sc.summarize(obs[v][0], boots[v])
@@ -1076,22 +1076,22 @@ def stage_s6():
     for k, (scope, code, sessions, L, variants) in enumerate(settings, start=1):
         REP.set_task(f"{scope} L={L}")
         all_rows += run_setting(scope, code, sessions, L, variants, B_MAIN, [SEED, code, L], "main", k, len(settings))
-        REP.line(f"[bootstrap] 完成设置流 {k}/{len(settings)}（{scope}, L={L}）| {rt_set.text(k, len(settings), '流')}")
+        REP.line(f"[bootstrap] Completed setting stream {k}/{len(settings)} ({scope}, L={L}) | {rt_set.text(k, len(settings), 'stream')}")
     res = pd.DataFrame(all_rows)
 
-    REP.line("步骤 3/4：Monte Carlo 精度与预定加密规则（p_adj 距 0.05/0.01/0.001 小于 3×6×SE）")
+    REP.line("Step 3/4: Monte Carlo precision and prespecified refinement (p_adj within 3×6×SE of 0.05/0.01/0.001)")
     need = res[[sc.near_threshold(p, se) for p, se in zip(res.adjusted_p, res.p_mc_se)]]
     refine_keys = sorted({(r.session_scope, r.block_length) for r in need.itertuples()})
-    REP.line(f"触发加密的（范围, L）：{refine_keys if refine_keys else '无'}")
+    REP.line(f"Refinement triggered for (scope, L): {refine_keys if refine_keys else 'none'}")
     for k, (scope, L) in enumerate(refine_keys, start=1):
         code, sessions = SCOPES[scope]
         variants = VARIANTS_POOLED if scope == "pooled_3_sessions" else VARIANTS_SUB
-        REP.set_task(f"加密 {scope} L={L} B={B_REFINE}")
+        REP.set_task(f"Refine {scope} L={L} B={B_REFINE}")
         all_rows += run_setting(scope, code, sessions, L, variants, B_REFINE, [SEED, code, L, 1], "refine", k, len(refine_keys))
     res = pd.DataFrame(all_rows)
     REP.set_task(None)
 
-    REP.line("步骤 4/4：分块推断适用性诊断（序列、自相关、趋势、任务条件）")
+    REP.line("Step 4/4: assess block inference (time series, autocorrelation, trends, task conditions)")
     import statsmodels.api as sm
     with np.errstate(invalid="ignore", divide="ignore"):
         Mtr = np.where(N > 0, S / N, np.nan)
@@ -1128,23 +1128,23 @@ def stage_s6():
             n_trend_sig += fit.pvalues[1] < 0.05
             trend_big |= abs(span) > 0.5 * abs(sdelta)
         if n_trend_sig >= 2 or trend_big:
-            flags.append(f"趋势警示（HAC p<0.05 的会话数 {n_trend_sig}；会话内变化>0.5|Δ|：{trend_big}）")
+            flags.append(f"Trend warning (sessions with HAC p<0.05: {n_trend_sig}; within-session change > 0.5|Δ|: {trend_big})")
         se5 = main_res[(main_res.session_scope == "pooled_3_sessions") & (main_res.block_length == 5)].boot_se.to_numpy()[kk]
         se10 = main_res[(main_res.session_scope == "pooled_3_sessions") & (main_res.block_length == 10)].boot_se.to_numpy()[kk]
         se1 = main_res[(main_res.session_scope == "pooled_3_sessions") & (main_res.block_length == 1)].boot_se.to_numpy()[kk]
         if n_far >= 2 or se10 > 1.2 * se5:
-            flags.append(f"相关可能超过块长（lag6–15 超带 {n_far} 个；SE(L10)/SE(L5)={se10 / se5:.2f}）")
+            flags.append(f"Dependence may exceed block length ({n_far} lags 6–15 outside the band; SE(L10)/SE(L5)={se10 / se5:.2f})")
         signs = {np.sign(sess_d[s].difference_ms) for s in (1, 2, 3)}
         overlap = all(max(sess_d[i].ci95_low, sess_d[j].ci95_low) <= min(sess_d[i].ci95_high, sess_d[j].ci95_high)
                       for i, j in [(1, 2), (1, 3), (2, 3)])
         if len(signs) > 1 or not overlap:
-            flags.append(f"会话异质（方向一致：{len(signs) == 1}；95% 区间两两重叠：{overlap}）")
+            flags.append(f"Session heterogeneity (directions agree: {len(signs) == 1}; pairwise overlap of 95% intervals: {overlap})")
         diag_rows.append(dict(comparison=name, region_A=sc.REGIONS[a], region_B=sc.REGIONS[b], acf_lag1=acf[1], acf_lag2=acf[2],
                               acf_lag5=acf[5], n_lags_6_15_beyond_band=n_far, boot_se_L1=se1, boot_se_L5=se5,
                               boot_se_L10=se10, se_ratio_L10_L5=se10 / se5, se_ratio_L5_L1=se5 / se1,
                               n_sessions_trend_hac_p_lt_05=n_trend_sig, trend_change_gt_half_delta=trend_big,
                               session_signs_consistent=len(signs) == 1, session_ci95_pairwise_overlap=overlap,
-                              inference_condition_flags=" | ".join(flags) if flags else "未触发预定警示（不等于证明独立或平稳）"))
+                              inference_condition_flags=" | ".join(flags) if flags else "No prespecified warning triggered; independence and stationarity remain assumptions"))
         # covariates: descriptive regression with panel HAC
         dfc = pd.DataFrame({"d": d, "session": sess_num, "pos": meta.trial_pos, "set_size": meta.set_size.astype(str),
                             "correct": meta.correct.astype(int), "artifact": meta.artifact.astype(int)}).dropna()
@@ -1176,16 +1176,16 @@ def stage_s6():
         series[f"diff_{sc.REGION_SHORT[sc.REGIONS[a]]}-{sc.REGION_SHORT[sc.REGIONS[b]]}"] = D6[:, kk]
     series.to_csv(FIG / "source_data/fig5_trial_series.csv", index=False)
     for r in diag.itertuples():
-        REP.line(f"诊断 {r.comparison}: ACF1={r.acf_lag1:+.2f} SE比(L10/L5)={r.se_ratio_L10_L5:.2f} → {r.inference_condition_flags}")
+        REP.line(f"Diagnostic {r.comparison}: ACF1={r.acf_lag1:+.2f}, SE(L10)/SE(L5)={r.se_ratio_L10_L5:.2f}: {r.inference_condition_flags}")
     note_map = {(r.region_A, r.region_B): r.inference_condition_flags for r in diag.itertuples()}
     res["diagnostic_note"] = [note_map[(a, b)] for a, b in zip(res.region_A, res.region_B)]
     res.to_csv(TAB / "bootstrap_results_all_settings.csv", index=False)
     prim = res[res.is_primary]
     prim.to_csv(TAB / "primary_result_pooled_L5.csv", index=False)
-    REP.line("主分析（预定参考设置：池化、非零、全部试次、L=5、B=50000）：")
+    REP.line("Primary analysis (prespecified reference: pooled nonzero windows, all trials, L=5, B=50000):")
     for r in prim.itertuples():
         REP.line(f"  {sc.REGION_SHORT[r.region_A]}-{sc.REGION_SHORT[r.region_B]}: Δ={r.difference_ms:+.4f} ms | 95%CI "
-                 f"[{r.ci95_low:+.4f}, {r.ci95_high:+.4f}] | Bonf区间 [{r.ci_bonf_low:+.4f}, {r.ci_bonf_high:+.4f}] | "
+                 f"[{r.ci95_low:+.4f}, {r.ci95_high:+.4f}] | Bonferroni interval [{r.ci_bonf_low:+.4f}, {r.ci_bonf_high:+.4f}] | "
                  f"p_raw={r.raw_p:.2e} p_adj={r.adjusted_p:.2e} {r.significance_bonferroni}")
     save_state(bootstrap_streams=len(settings), bootstrap_variant_settings=n_variant_settings,
                refine_settings=[list(k) for k in refine_keys], bootstrap_rows=len(res))
@@ -1215,7 +1215,7 @@ EXPECTED_OUTPUTS = [
     "figures/fig5_trial_series_and_acf.png", "figures/fig5_trial_series_and_acf.pdf",
     "figures/fig5b_task_covariates.png", "figures/fig5b_task_covariates.pdf",
     "figures/fig6_welch_vs_new_table.png", "figures/fig6_welch_vs_new_table.pdf",
-    "results_numeric_summary_CN.md",
+    "results_numeric_summary.md",
     "tables/session_heterogeneity_descriptive.csv", "tables/workspace_diff_vs_NeuroTD-main_zip.txt",
     "tables/posthoc_pair_level_heterogeneity.csv", "tables/posthoc_leave_one_electrode_out_summary.csv",
     "tables/posthoc_hemisphere_label_category.csv", "tables/posthoc_search_boundary_windows_by_region.csv",
@@ -1223,7 +1223,7 @@ EXPECTED_OUTPUTS = [
     "analysis_plan_prespecified.md", "deviations_from_plan.md", "logs/time_estimate_at_start.json",
     "logs/environment.json", "run.log", "progress.jsonl", "timing_summary.csv",
 ]
-NARRATIVE = ["REPORT_CN.md", "methods_paragraph_EN.md", "response_reviewer_2_4_2_EN.md"]
+NARRATIVE = ["REPORT.md", "methods_paragraph_EN.md", "response_reviewer_2_4_2_EN.md"]
 
 
 def stage_s8():
@@ -1241,20 +1241,20 @@ def stage_s8():
     prim = res[res.is_primary]
     probs = []
     if n_main != n_expected_rows:
-        probs.append(f"bootstrap 主结果行数 {n_main} ≠ 预期 {n_expected_rows}")
+        probs.append(f"Bootstrap result rows {n_main}, expected {n_expected_rows}")
     if len(prim) != 6 or prim[["difference_ms", "raw_p", "ci95_low"]].isna().any().any():
-        probs.append("主分析六组结果不完整")
+        probs.append("Some of the six primary comparisons are missing")
     if (res.raw_p == 0).any():
-        probs.append("存在 p=0")
+        probs.append("Found p=0")
     syn = pd.read_csv(SYN / "synthetic_validation_results.csv")
     if not syn.passed.all():
-        probs.append("合成核验有未通过项")
-    REP.line(f"预期输出 {len(EXPECTED_OUTPUTS) + len(NARRATIVE)} 项：缺失 {len(missing)}，空文件 {len(empty)}；"
-             f"bootstrap 主结果 {n_main}/{n_expected_rows} 行；主分析 {len(prim)} 行；合成核验 {int(syn.passed.sum())}/{len(syn)}")
+        probs.append("Some synthetic checks failed")
+    REP.line(f"Expected {len(EXPECTED_OUTPUTS) + len(NARRATIVE)} outputs: {len(missing)} missing, {len(empty)} empty; "
+             f"bootstrap primary rows {n_main}/{n_expected_rows}; primary contrasts {len(prim)}; synthetic checks {int(syn.passed.sum())}/{len(syn)}")
     for m in missing:
-        REP.line(f"  缺失：{m}")
+        REP.line(f"  Missing: {m}")
     for p in probs:
-        REP.line(f"  问题：{p}")
+        REP.line(f"  Issue: {p}")
     save_state(integrity_missing=missing, integrity_empty=empty, integrity_problems=probs)
     return not missing and not empty and not probs
 
@@ -1263,28 +1263,28 @@ def final_summary(complete: bool, t_run: float, failed_stage: str | None = None,
     st = load_state()
     if failed_stage:
         st.setdefault("integrity_problems", [])
-        st["integrity_problems"] = [f"阶段失败：{failed_stage}"] + [f"未运行：{s}" for s in remaining]
+        st["integrity_problems"] = [f"Failed stage: {failed_stage}"] + [f"Skipped stage: {s}" for s in remaining]
     REP.line("=" * 78)
     tim = pd.read_csv(OUT / "timing_summary.csv") if (OUT / "timing_summary.csv").exists() else pd.DataFrame()
-    REP.line(f"本次调用实际耗时 {fmt_hms(t_run)}")
+    REP.line(f"Elapsed time for this invocation {fmt_hms(t_run)}")
     if len(tim):
         last = tim.groupby("stage").tail(1)
         for r in last.itertuples():
-            REP.line(f"  {r.stage}: {fmt_hms(float(r.seconds))}（{r.status}，结束于 {r.end}）")
-        REP.line(f"  各阶段最近一次耗时合计 {fmt_hms(last.seconds.astype(float).sum())}")
+            REP.line(f"  {r.stage}: {fmt_hms(float(r.seconds))} ({r.status}, ended {r.end})")
+        REP.line(f"  Total time across the latest runs of individual stages {fmt_hms(last.seconds.astype(float).sum())}")
     own, kids = peak_rss_mb()
-    REP.line(f"峰值内存：主进程 {own:.0f} MB；子进程 {kids:.0f} MB")
-    REP.line(f"复用试次×通道对 {st.get('pairs_reused')}；本次新计算延迟（主分析输入）{st.get('pairs_recomputed', 0)}；"
-             f"抽样重估 {st.get('reestimate_computed_now')} 对（一致 {st.get('reestimate_identical')}/{st.get('reestimate_tasks')}）；"
-             f"失败 {int(st.get('pairs_recompute_failed', 0) or 0) + int(st.get('reestimate_failed', 0) or 0)}")
-    REP.line(f"输出目录：{OUT}")
-    REP.line(f"主报告：{OUT / 'REPORT_CN.md'}；数字摘要：{OUT / 'results_numeric_summary_CN.md'}")
-    REP.line(f"主要图表：{FIG / 'fig1_fig4c_style_distribution_new_test.png'}，{FIG / 'fig2_primary_differences_ci.png'}，"
-             f"{FIG / 'fig4_sensitivity_block_length_zero_artifact_weights.png'}，{FIG / 'fig5_trial_series_and_acf.png'}")
+    REP.line(f"Peak memory: parent {own:.0f} MB; children {kids:.0f} MB")
+    REP.line(f"Reused trial/pair records {st.get('pairs_reused')}; new delay estimates for the primary analysis {st.get('pairs_recomputed', 0)}; "
+             f"re-estimated {st.get('reestimate_computed_now')} pairs ({st.get('reestimate_identical')}/{st.get('reestimate_tasks')} matches); "
+             f"failed {int(st.get('pairs_recompute_failed', 0) or 0) + int(st.get('reestimate_failed', 0) or 0)}")
+    REP.line(f"Output directory: {OUT}")
+    REP.line(f"Main report: {OUT / 'REPORT.md'}; numeric summary: {OUT / 'results_numeric_summary.md'}")
+    REP.line(f"Principal figures: {FIG / 'fig1_fig4c_style_distribution_new_test.png'}, {FIG / 'fig2_primary_differences_ci.png'}, "
+             f"{FIG / 'fig4_sensitivity_block_length_zero_artifact_weights.png'}, {FIG / 'fig5_trial_series_and_acf.png'}")
     if complete:
-        REP.line("全部完成")
+        REP.line("All stages complete")
     else:
-        REP.line("部分完成。未完成事项：")
+        REP.line("Partially complete. Outstanding items: ")
         for m in st.get("integrity_missing", []) + st.get("integrity_problems", []):
             REP.line(f"  - {m}")
 
@@ -1297,7 +1297,7 @@ def main():
     want = args.stages.split(",")
     REP = Reporter(OUT)
     t_run = time.time()
-    REP.line(f"Review 2.4.2 / 图 4c 重新检验流水线启动 | PID {os.getpid()} | 阶段 {want} | 输出 {OUT}")
+    REP.line(f"Reviewer 2.4.2 / Figure 4c pipeline | PID {os.getpid()} | stages {want} | output {OUT}")
     REP.event("run_start", stages=want, pid=os.getpid())
     funcs = {"s1": stage_s1, "s2": stage_s2, "s3": stage_s3, "s4": stage_s4, "s5": stage_s5,
              "s6": stage_s6, "s7": stage_s7, "s8": stage_s8}
@@ -1310,14 +1310,14 @@ def main():
             out = funcs[key]()
             if key == "s8":
                 complete = bool(out)
-                REP.end_stage("完成" if complete else "完成（发现未完成事项）")
+                REP.end_stage("complete" if complete else "complete with outstanding items")
             else:
-                REP.end_stage("完成")
+                REP.end_stage("complete")
         except Exception as e:  # noqa: BLE001
             tb = traceback.format_exc()
-            REP.line(f"[{name}] 错误：{type(e).__name__}: {e}\n{tb}\n处理：停止该阶段及后续阶段（后续依赖其输出）。")
+            REP.line(f"[{name}] Error: {type(e).__name__}: {e}\n{tb}\nStopping this stage and all stages that depend on its output.")
             REP.event("error", error=str(e), traceback=tb)
-            REP.end_stage("失败", note=str(e)[:200])
+            REP.end_stage("failed", note=str(e)[:200])
             keys = [k for k, _ in STAGES]
             remaining = [n for k, n in STAGES if k in want and keys.index(k) > keys.index(key)]
             final_summary(False, time.time() - t_run, failed_stage=name, remaining=remaining)

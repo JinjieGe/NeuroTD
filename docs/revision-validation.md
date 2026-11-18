@@ -1,4 +1,4 @@
-# 整合验证记录 / Integration validation
+# Integration validation
 
 ## 2026-11-18 revision evidence
 
@@ -38,7 +38,7 @@ python examples/revision/run.py run --workspace /path/to/new-dynamic --study dyn
 python examples/revision/run.py run --workspace /path/to/new-stats --study session_inference --script code/run_analysis.py -- --pilot
 ```
 
-All outputs were written outside the checkout. The figure-2.2 output was visually inspected. A missing bold variant of the Chinese font fell back to its regular weight in a separate bilingual plot; the figure commands completed. The original figure-1 docstring emits an existing invalid-escape warning during syntax checking; it does not affect these checks.
+All outputs were written outside the checkout. The figure-2.2 output was visually inspected. The original figure-1 docstring emits an existing invalid-escape warning during syntax checking; it does not affect these checks.
 
 ### Scope of the November 8 checks
 

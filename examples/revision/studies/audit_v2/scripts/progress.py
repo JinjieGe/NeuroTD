@@ -88,14 +88,14 @@ class Reporter:
                       "task_start": None, "done": None, "total": None,
                       "unit": None, "extra": None}
         self.line("=" * 78)
-        self.line(f"[{name}] 进入阶段")
+        self.line(f"[{name}] Starting stage")
         self.event("stage_start")
 
-    def end_stage(self, status: str = "完成", note: str = ""):
+    def end_stage(self, status: str = "completed", note: str = ""):
         el = time.time() - self.state["t_start"]
         own, kids = peak_rss_mb()
-        self.line(f"[{self.stage}] 结束阶段：{status} | 耗时 {fmt_hms(el)} ({el:.1f} s) "
-                  f"| 峰值内存 主进程 {own:.0f} MB / 子进程 {kids:.0f} MB" + (f" | {note}" if note else ""))
+        self.line(f"[{self.stage}] Stage ended: {status} | elapsed {fmt_hms(el)} ({el:.1f} s) "
+                  f"| peak memory: main {own:.0f} MB / children {kids:.0f} MB" + (f" | {note}" if note else ""))
         self.event("stage_end", status=status, seconds=round(el, 3), note=note,
                    peak_rss_self_mb=round(own, 1), peak_rss_children_mb=round(kids, 1))
         new = not self.timing_path.exists()
@@ -132,16 +132,16 @@ class Reporter:
                 continue
             el = time.time() - st["t_start"]
             if st.get("done") is None or st.get("total") is None:
-                prog = "完成量暂不可获取"
+                prog = "Progress count unavailable"
             else:
-                prog = f"已完成 {st['done']}/{st['total']} {st.get('unit') or ''}".rstrip()
+                prog = f"Completed {st['done']}/{st['total']} {st.get('unit') or ''}".rstrip()
             task = st.get("task")
             tdur = ""
             if task and st.get("task_start"):
-                tdur = f"（已持续 {fmt_hms(time.time() - st['task_start'])}）"
+                tdur = f" (elapsed {fmt_hms(time.time() - st['task_start'])})"
             extra = f" | {st['extra']}" if st.get("extra") else ""
-            self.line(f"[心跳][{self.stage}] 阶段已运行 {fmt_hms(el)} | {prog} | "
-                      f"当前任务：{task or '无'}{tdur}{extra}")
+            self.line(f"[Progress][{self.stage}] Stage elapsed {fmt_hms(el)} | {prog} | "
+                      f"Current task: {task or 'none'}{tdur}{extra}")
 
     def close(self):
         self._stop.set()
@@ -160,7 +160,7 @@ class RateTracker:
     def text(self, done: int, total: int, unit_label: str) -> str:
         el = time.time() - self.t0
         if done < self.min_units or el < self.min_seconds or done == 0:
-            return f"已运行 {fmt_hms(el)} | 平均速度：正在估计 | 预计剩余：正在估计"
+            return f"Elapsed {fmt_hms(el)} | estimating throughput and time remaining"
         per = el / done
         rem = per * max(total - done, 0)
-        return f"已运行 {fmt_hms(el)} | 平均 {per:.2f} 秒/{unit_label} | 预计剩余约 {fmt_hms(rem)}（预计）"
+        return f"Elapsed {fmt_hms(el)} | mean {per:.2f} s/{unit_label} | estimated remaining {fmt_hms(rem)}"

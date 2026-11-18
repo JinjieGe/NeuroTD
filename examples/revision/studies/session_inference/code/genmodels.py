@@ -17,22 +17,22 @@ SESSIONS = [(0, 50), (50, 100), (100, 150)]
 BASE = 9.0
 
 SCENARIOS = {
-    "A": "独立、均值相同、四脑区方差不同（i.i.d. 高斯）",
-    "B1": "短程相关 AR(1) φ=0.3，真实跨脑区相关",
-    "B2": "短程相关 AR(1) φ=0.6，真实跨脑区相关",
-    "C1": "接近真实数据：会话偏移、会话特异 SD、对角 VAR(1)、真实相关、真实 N",
-    "C2": "C1 + 随机 N（整行重抽）且 N 与信号相关（比值目标不变）",
-    "D1": "压力：更长相关 φ=0.85（C1 结构）",
-    "D2": "压力：长记忆近似 AR(0.5)+慢变 AR(0.97)（40% 方差）",
-    "D3": "压力：会话内线性趋势（真实斜率量级，N 加权中心化）",
-    "D4": "压力：t(3) 新息 + 试次公共异方差尺度",
-    "D5": "压力：每会话 2 个异常试次，各脑区独立 ±6σ",
+    "A": "Independent Gaussian trials, equal means and region-specific variances across four regions",
+    "B1": "Short-range AR(1), phi=0.3, observed cross-region correlation",
+    "B2": "Short-range AR(1), phi=0.6, observed cross-region correlation",
+    "C1": "Observed-data approximation: session offsets, session-specific SD, diagonal VAR(1), observed correlation and counts",
+    "C2": "C1 with random counts resampled by row and correlated with signal; ratio target retained",
+    "D1": "Stress test: longer dependence, phi=0.85, using the C1 structure",
+    "D2": "Stress test: approximate long memory, AR(0.5) plus slow AR(0.97) (40% of variance)",
+    "D3": "Stress test: within-session linear trends at observed slopes, centered with count weights",
+    "D4": "Stress test: t(3) innovations and trial-level shared heteroscedasticity",
+    "D5": "Stress test: two outlier trials per session, independent regional offsets of ±6 SD",
 }
 CORE = ["A", "B1", "B2", "C1", "C2"]
 NULL_TYPES = {
-    "G": ("全局零假设", np.zeros(4)),
-    "P1": ("部分零假设：海马 +0.7 ms", np.array([0.0, 0.7, 0.0, 0.0])),
-    "P2": ("部分零假设：MTG=STG=+0.3 ms，AMY=HIP", np.array([0.0, 0.0, 0.3, 0.3])),
+    "G": ("global null", np.zeros(4)),
+    "P1": ("partial null: hippocampus +0.7 ms", np.array([0.0, 0.7, 0.0, 0.0])),
+    "P2": ("partial null: MTG=STG=+0.3 ms, AMY=HIP", np.array([0.0, 0.0, 0.3, 0.3])),
 }
 
 

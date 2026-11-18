@@ -61,7 +61,7 @@ def make_all(OUT: Path, REP):
     refine = res[res.run_tag == "refine"]
 
     # ---------------------------------------------------------------- Fig 1
-    REP.set_task("Fig 1 原图 4c 风格分布图")
+    REP.set_task("Fig 1 distributions in the style of original Figure 4c")
     sub = np.load(SRC / "fig1_violin_window_subsample_200k_per_region_seed0.npz")
     d0 = desc[desc.scope == "pooled_3_sessions"].set_index("region")
     fig, ax = plt.subplots(figsize=(8.5, 6.5))
@@ -101,7 +101,7 @@ def make_all(OUT: Path, REP):
     prim.to_csv(SRC / "fig1_fig2_primary_test_results.csv", index=False)
 
     # ---------------------------------------------------------------- Fig 2
-    REP.set_task("Fig 2 六组差异及置信区间")
+    REP.set_task("Fig 2 six contrasts and confidence intervals")
     fig, ax = plt.subplots(figsize=(7.5, 4.8))
     labs = []
     for k, r in enumerate(prim.itertuples()):
@@ -119,7 +119,7 @@ def make_all(OUT: Path, REP):
     save(fig, FIG, "fig2_primary_differences_ci")
 
     # ---------------------------------------------------------------- Fig 3
-    REP.set_task("Fig 3 各会话及去一会话差异")
+    REP.set_task("Fig 3 individual-session and leave-one-session-out contrasts")
     sel = main[(main.analysis_variant == "main_pooled_nonzero_all_trials") & (main.block_length == 5)]
     scopes = ["pooled_3_sessions", "ses-01_only", "ses-02_only", "ses-03_only", "drop_ses-01", "drop_ses-02", "drop_ses-03"]
     cols = ["black", "tab:blue", "tab:orange", "tab:green", "0.45", "0.6", "0.75"]
@@ -145,7 +145,7 @@ def make_all(OUT: Path, REP):
     sel.to_csv(SRC / "fig3_session_and_loso_results.csv", index=False)
 
     # ---------------------------------------------------------------- Fig 4 + sensitivity table
-    REP.set_task("Fig 4 敏感性分析")
+    REP.set_task("Fig 4 sensitivity analysis")
     pooled = main[main.session_scope == "pooled_3_sessions"]
     variants = list(VAR_LABEL)
     fig, axes = plt.subplots(2, 3, figsize=(15, 9), sharey=True)
@@ -194,7 +194,7 @@ def make_all(OUT: Path, REP):
     pooled.to_csv(SRC / "fig4_sensitivity_pooled.csv", index=False)
 
     # ---------------------------------------------------------------- Fig 5 diagnostics
-    REP.set_task("Fig 5 试次序列与自相关诊断")
+    REP.set_task("Fig 5 trial series and autocorrelation diagnostics")
     fig = plt.figure(figsize=(15, 13))
     gs = fig.add_gridspec(4, 6, height_ratios=[1, 1, 1, 0.9], hspace=0.55, wspace=0.35)
     for j, s in enumerate(["ses-01", "ses-02", "ses-03"]):
@@ -256,7 +256,7 @@ def make_all(OUT: Path, REP):
     save(fig, FIG, "fig5b_task_covariates")
 
     # ---------------------------------------------------------------- Fig 6 Welch vs new
-    REP.set_task("Fig 6 原 Welch 与新检验对照表")
+    REP.set_task("Fig 6 original Welch and revised tests")
     wp = welch[welch.scope == "pooled_3_sessions"].set_index(["region_A", "region_B"])
     rows = []
     for a, b in sc.COMPARISONS:
@@ -298,35 +298,35 @@ def make_all(OUT: Path, REP):
     show.to_csv(SRC / "fig6_table_display.csv", index=False)
 
     # ---------------------------------------------------------------- numeric summary
-    REP.set_task("数字摘要")
-    lines = ["# 数字摘要（自动生成，供报告引用）", "",
-             "本文件由 `scripts/figures.py` 从结果表直接生成，不含解释。", "",
-             "## 主分析（池化、非零、全部 150 试次、L=5、B=50000）", "",
-             "| 比较 | Δ (ms) | 95% 区间 | Bonferroni 水平区间 | p_raw | p_adj | MC SE(p_raw) | 显著性 |", "|---|---|---|---|---|---|---|---|"]
+    REP.set_task("Numerical summary")
+    lines = ["# Numerical summary", "",
+             "Generated directly from the result tables by `scripts/figures.py`.", "",
+             "## Primary analysis (pooled nonzero delays, all 150 trials, L=5, B=50000)", "",
+             "| Comparison | Δ (ms) | 95% interval | Bonferroni interval | p_raw | p_adj | MC SE(p_raw) | Significance |", "|---|---|---|---|---|---|---|---|"]
     for r in prim.itertuples():
         lines.append(f"| {cname(r.region_A, r.region_B)} | {r.difference_ms:+.4f} | [{r.ci95_low:+.4f}, {r.ci95_high:+.4f}] | "
                      f"[{r.ci_bonf_low:+.4f}, {r.ci_bonf_high:+.4f}] | {fmt_p(r.raw_p, r.bootstrap_B)} | "
                      f"{fmt_p(r.adjusted_p, r.bootstrap_B)} | {r.p_mc_se:.1e} | {r.significance_bonferroni} |")
-    lines += ["", "## 各设置显著性（Bonferroni p_adj<0.05 的块长）", "",
-              "| 版本 | 范围 | 比较 | Δ (ms) | L=1 | L=2 | L=5 | L=10 |", "|---|---|---|---|---|---|---|---|"]
+    lines += ["", "## Significance across settings (block lengths with Bonferroni p_adj<0.05)", "",
+              "| Variant | Scope | Comparison | Δ (ms) | L=1 | L=2 | L=5 | L=10 |", "|---|---|---|---|---|---|---|---|"]
     for r in wide.itertuples():
         lines.append(f"| {r.analysis_variant.split('_')[0]} | {r.session_scope} | {r.comparison} | {r.difference_ms:+.3f} | "
                      + " | ".join(f"{fmt_p(getattr(r, f'p_adj_L{L}'), B)} {getattr(r, f'sig_L{L}')}" for L in (1, 2, 5, 10)) + " |")
     if len(refine):
-        lines += ["", "## 加密重算（B=500000）", "", "| 版本 | 范围 | L | 比较 | p_adj (B=50000) | p_adj (B=500000) |", "|---|---|---|---|---|---|"]
+        lines += ["", "## Refined estimates (B=500000)", "", "| Variant | Scope | L | Comparison | p_adj (B=50000) | p_adj (B=500000) |", "|---|---|---|---|---|---|"]
         for r in refine.itertuples():
             m = main[(main.analysis_variant == r.analysis_variant) & (main.session_scope == r.session_scope) &
                      (main.block_length == r.block_length) & (main.region_A == r.region_A) & (main.region_B == r.region_B)].iloc[0]
             lines.append(f"| {r.analysis_variant.split('_')[0]} | {r.session_scope} | {r.block_length} | {cname(r.region_A, r.region_B)} | "
                          f"{fmt_p(m.adjusted_p, m.bootstrap_B)} | {fmt_p(r.adjusted_p, r.bootstrap_B)} |")
-    lines += ["", "## 诊断", "", "| 比较 | ACF1 | lag6–15 超带数 | SE L10/L5 | SE L5/L1 | 警示 |", "|---|---|---|---|---|---|"]
+    lines += ["", "## Diagnostics", "", "| Comparison | ACF1 | Lags 6–15 outside band | SE L10/L5 | SE L5/L1 | Flags |", "|---|---|---|---|---|---|"]
     for r in diag.itertuples():
         lines.append(f"| {r.comparison} | {r.acf_lag1:+.2f} | {r.n_lags_6_15_beyond_band} | {r.se_ratio_L10_L5:.2f} | "
                      f"{r.se_ratio_L5_L1:.2f} | {r.inference_condition_flags} |")
-    lines += ["", "## 窗口级描述（池化）", "", "| 脑区 | 原始窗口 | 零值比例 | 非零 N | 均值 | 中位数 | Q25 | Q75 |", "|---|---|---|---|---|---|---|---|"]
+    lines += ["", "## Pooled window-level summaries", "", "| Region | All windows | Zero fraction | Nonzero N | Mean | Median | Q25 | Q75 |", "|---|---|---|---|---|---|---|---|"]
     for r in d0.reset_index().itertuples():
         lines.append(f"| {r.region} | {r.n_windows_raw:,} | {r.zero_fraction:.4f} | {r.n_nonzero:,} | {r.mean_ms:.4f} | "
                      f"{r.median_ms:.5f} | {r.q25:.4f} | {r.q75:.4f} |")
-    (OUT / "results_numeric_summary_CN.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (OUT / "results_numeric_summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     REP.set_task(None)
-    REP.line("图表（PNG+PDF）、源数据与数字摘要已写出。")
+    REP.line("Saved figures (PNG and PDF), their source data and the numerical summary.")

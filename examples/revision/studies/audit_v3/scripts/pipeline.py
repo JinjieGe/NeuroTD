@@ -27,15 +27,15 @@ sys.path.insert(0, str(C.PREV2 / "scripts"))
 import infer as I  # noqa: E402
 
 STAGES = [
-    ("s1", "输入、溯源与受试者登记"),
-    ("s2", "通道映射与官方资料"),
-    ("s3", "全通道波形质量检查"),
-    ("s4", "原分组与电极束延迟"),
-    ("s5", "时间对应关系对照"),
-    ("s6", "注入已知延迟"),
-    ("s7", "任务阶段与宏电极"),
-    ("s8", "有限统计验证"),
-    ("s9", "绘图、报告及完整性检查"),
+    ("s1", "Inputs, provenance and participant inventory"),
+    ("s2", "Channel mapping and primary sources"),
+    ("s3", "Waveform quality across all channels"),
+    ("s4", "Original labels and within-bundle delays"),
+    ("s5", "Temporal correspondence controls"),
+    ("s6", "Known-delay injection"),
+    ("s7", "Task phases and macroelectrodes"),
+    ("s8", "Statistical validation"),
+    ("s9", "Figures, report and integrity checks"),
 ]
 REP: Reporter | None = None
 _W = {}
@@ -113,7 +113,7 @@ def stage_s1():
     except Exception as e:
         env["pynwb"] = str(e)
     (OUT / "logs/environment.json").write_text(json.dumps(env, indent=2))
-    REP.line(f"Python {env['python']} numpy {env['numpy']} 进程数 {N_WORKERS}")
+    REP.line(f"Python {env['python']} numpy {env['numpy']} workers {N_WORKERS}")
     rows = []
     for s, p in NWB.items():
         REP.set_task(f"SHA-256 {p.name}")
@@ -146,11 +146,11 @@ def stage_s1():
                                 in_main_analysis=False))
     pd.DataFrame(inv).to_csv(OUT / "provenance/subject_session_inventory.csv", index=False)
     n_extra = sum(1 for r in inv if not r["in_main_analysis"])
-    REP.line(f"DANDI 本地文件 {len(inv)} 个；主分析 3 个会话；其余 {n_extra} 个只登记、不混入推断")
+    REP.line(f"Local DANDI files: {len(inv)}. The primary analysis covers three sessions; the other {n_extra} are inventoried separately.")
     # reuse checkpoint shape
     z = np.load(PREV1 / "checkpoints/windows_all_trials.npz", allow_pickle=True)
     assert z["shifts_samples"].shape == (150, 60, 508)
-    REP.line("复用第一轮窗口延迟数组 150×60×508（int16）")
+    REP.line("Reusing the first audit window delays, 150 × 60 × 508 (int16)")
     # benchmark
     _init()
     x = _micro(1, 0)[:, 0]
@@ -161,15 +161,15 @@ def stage_s1():
     t0 = time.perf_counter()
     estimate_pair(x, y)
     t_vec = time.perf_counter() - t0
-    REP.line(f"一致性：中心 {okc} 移位 {oks} | 原函数 {t_orig:.2f}s 向量化 {t_vec:.2f}s")
+    REP.line(f"Agreement: centers {okc}, shifts {oks} | original estimator {t_orig:.2f} s, vectorized {t_vec:.2f} s")
     if not (okc and oks):
-        raise RuntimeError("向量化实现与原函数不一致，停止")
+        raise RuntimeError("The vectorized and original estimates differ. Stopping.")
     n_new = 100 * 150
     est = dict(verify_s=t_orig, vec_s=t_vec, new_pair_trials=n_new,
                s4_hours=n_new * t_vec / N_WORKERS / 3600,
                s5_hours=(112 * 150 * 2 + 12 * 150 * 3) * t_vec / N_WORKERS / 3600)
     (OUT / "logs/time_estimate_at_start.json").write_text(json.dumps(est, indent=2))
-    REP.line(f"开始时估计：新同束延迟约 {est['s4_hours']:.2f} h；错配对照约 {est['s5_hours']:.2f} h（预计）")
+    REP.line(f"Initial estimate: new within-bundle delays about {est['s4_hours']:.2f} h; mismatch controls about {est['s5_hours']:.2f} h")
     save_state(vec_ok=True, t_vec=t_vec)
 
 
@@ -182,42 +182,42 @@ def stage_s2():
         (OUT / "electrodes" / name).write_bytes((src / name).read_bytes())
     findings = pd.read_csv(OUT / "electrodes/electrode_findings.csv")
     extra = [
-        dict(id="E14", topic="DANDI 000574 元数据中的解剖索引", category="尚未确认",
-             finding="DANDI 页面写明 This Dandiset does not specify which brain regions（无 UBERON 解剖索引）。版本 0.231010.1809，联系人 Jan Hohenheim。",
-             evidence="https://dandiarchive.org/dandiset/000574/0.231010.1809", impact="不能从 DANDI 元数据确认微电极脑区"),
-        dict(id="E15", topic="NWB 转换代码", category="尚未确认",
-             finding="DANDI 关联的 GitHub nwb-example（janhohenheim/nwb-example）只是读取示例，不是 NIX→NWB 转换脚本。G-Node 页面本次 HTTP 403，未能下载 NIX 原始说明。",
-             evidence="https://github.com/janhohenheim/nwb-example ；G-Node doi:10.12751/g-node.d76994",
-             impact="无法从转换代码判定微电极是否被错误地接到宏触点行"),
-        dict(id="E16", topic="AHL1–8 在微电极序列中的含义", category="存在冲突",
-             finding="NWB 把 ecephys.lfp（Micro iEEG data，32 kHz，32 列）的 32 列标为 AHL1–8、AL1–8、ECL1–8、PHR1–8，且引用与宏电极 1–8 号触点相同的电极表行。Sci Data：每根宏电极有 9 根微电极从尖端伸出约 4 mm，Fig. 2 把电极尖端当作微电极位置。因此标签像沿杆宏触点，官方描述则支持尖端微丝。",
-             evidence="NWB electrodes 引用；Boran et al. 2020 Sci Data Recording setup / Fig. 2",
-             impact="版本 A 的 MTG/STG 分组缺乏独立支持；版本 C 用束名、不冠脑区"),
-        dict(id="E17", topic="任务阶段边界", category="已确认",
-             finding="注视 1 s、编码 2 s、保持 3 s、随后探测。Sci Adv 以探测为 0：fixation [−6,−5]、encoding [−5,−3]、maintenance [−3,0]。NWB 试次长 8 s，NeuroTD 用 start+6 对齐反应时，与探测在第 6 s 一致。NWB trials 表没有单独的阶段列。",
-             evidence="Boran 2019 Sci Adv Methods；Sci Data Fig. 1；hiEEG_functions.py response_time 定义",
-             impact="阶段分析按 0–1 / 1–3 / 3–6 / 6–8 s 切分，属文献对齐而非 NWB 字段"),
+        dict(id="E14", topic="Anatomical index in DANDI 000574 metadata", category="unconfirmed",
+             finding="The DANDI page states that the Dandiset does not specify brain regions (no UBERON index). Version 0.231010.1809, contact Jan Hohenheim.",
+             evidence="https://dandiarchive.org/dandiset/000574/0.231010.1809", impact="The DANDI metadata do not establish the microelectrode regions."),
+        dict(id="E15", topic="NWB conversion code", category="unconfirmed",
+             finding="The DANDI-linked janhohenheim/nwb-example repository illustrates reading NWB data. The audit could not retrieve the NIX documentation from G-Node (HTTP 403) or locate the NIX-to-NWB converter.",
+             evidence="https://github.com/janhohenheim/nwb-example; G-Node doi:10.12751/g-node.d76994",
+             impact="Conversion code could not establish whether microelectrodes were incorrectly linked to macrocontact rows."),
+        dict(id="E16", topic="Meaning of AHL1–8 in the microelectrode series", category="conflicting sources",
+             finding="NWB labels the 32 ecephys.lfp columns (Micro iEEG data, 32 kHz) AHL1–8, AL1–8, ECL1–8 and PHR1–8, referencing the same electrode rows as macrocontacts 1–8. The Scientific Data description reports nine microwires extending about 4 mm from each depth-electrode tip; its Figure 2 locates the microelectrodes at the tip. The file labels resemble shaft macrocontacts.",
+             evidence="NWB electrode references; Boran et al. (2020), Scientific Data, Recording setup and Figure 2.",
+             impact="The version A MTG/STG groups lack independent support. Version C labels bundles by name."),
+        dict(id="E17", topic="Task phase boundaries", category="confirmed",
+             finding="Fixation lasts 1 s, encoding 2 s and maintenance 3 s, followed by probe. With probe at 0, Science Advances gives fixation [−6,−5], encoding [−5,−3] and maintenance [−3,0] s. NWB trials last 8 s. NeuroTD uses start+6 for response timing, consistent with probe at 6 s. The NWB trials table lacks separate phase columns.",
+             evidence="Boran et al. (2019) Science Advances, Methods; Scientific Data Figure 1; response_time in hiEEG_functions.py",
+             impact="Phase intervals of 0–1, 1–3, 3–6 and 6–8 s follow the literature."),
     ]
     findings = pd.concat([findings, pd.DataFrame(extra)], ignore_index=True)
     findings.to_csv(OUT / "electrodes/electrode_findings.csv", index=False)
     all_bundle_pairs().to_csv(OUT / "electrodes/bundle_pairs_112.csv", index=False)
     # Version B: not created
     (OUT / "electrodes/version_B_status.txt").write_text(
-        "B 未建立。没有独立于 NWB 标签的转换代码或 NIX 通道表，足以把微电极行从宏触点行分开或改侧别。\n")
+        "Mapping B is unavailable. No independent conversion script or NIX channel table established separate microelectrode rows or a corrected hemisphere.\n")
     for r in extra:
-        REP.line(f"  [{r['id']}] {r['topic']}：{r['category']}")
+        REP.line(f"  [{r['id']}] {r['topic']}: {r['category']}")
     # answers to the five questions (pre-data-collection of this round, based on sources)
     q = Path(OUT / "electrodes/five_mapping_questions.md")
     q.write_text("\n".join([
-        "# 五个映射问题（本轮查阅后）",
+        "# Five mapping questions after source review",
         "",
-        "1. AHL1–AHL8 等在微电极序列中是八个微丝还是沿杆宏触点？**存在冲突。** 名称与宏触点编号一致并共用电极表行；数据描述支持尖端微丝。",
-        "2. 微电极是否应按深部电极尖端定位？**官方描述支持尖端（Sci Data Fig. 2），NWB 坐标不是按尖端复制的。** 属描述与元数据冲突，不是已在 NWB 内确认。",
-        "3. 电极表 location 和坐标是否只适用于宏触点？**高度可能，尚未被转换代码证实。** 微电极序列没有单独的电极表行。",
-        "4. ECL、LR 左右侧不一致来自哪里？**尚未确认来源。** 只观察到 location 字符串与按 NWB 轴说明的 z 符号相反。未改侧别。",
-        "5. 实际单位、滤波、参考？参考：**已确认**共同颅内参考。滤波：**存在冲突**（表 0.5–1000 Hz vs 描述 0.5–5000 Hz）。单位：**存在冲突**（声明 volts，数值像 ±200 满量程 int16）。",
+        "1. Do AHL1–AHL8 and similar labels identify eight microwires or contacts along a shaft? **Conflicting sources.** The names and electrode rows match the numbered macrocontacts; the data description places microwires at the tip.",
+        "2. Should microelectrodes be localized to the depth-electrode tip? **Scientific Data Figure 2 supports the tip location.** NWB coordinates vary along the shaft. The discrepancy remains unresolved.",
+        "3. Do the electrode-table locations and coordinates apply only to macrocontacts? **Likely, pending verification against conversion code.** There are no separate microelectrode rows.",
+        "4. Why do ECL and LR show inconsistent laterality? **The origin is unconfirmed.** The location strings disagree with the z sign under the documented NWB axes. The audit retained the recorded laterality.",
+        "5. What units, filters and reference apply? **Confirmed:** common intracranial reference. **Conflicting:** filtering (table 0.5–1000 Hz vs description 0.5–5000 Hz) and units (declared volts; values resemble int16 scaled to ±200).",
         "",
-        "版本选择：A 追溯原图；C 为同束中性分组（主描述）；B 不建立；D2（尖端=1 号触点 location）仅敏感性。",
+        "Mapping A reproduces the original figure. C uses neutral within-bundle groups for the primary description. B remains unavailable. D2 assigns the tip the location of contact 1 for sensitivity analysis only.",
     ]), encoding="utf-8")
 
 
@@ -253,7 +253,7 @@ def _qc_task(args):
 def stage_s3():
     labs, _ = labels_32()
     tasks = [(s, t) for s in (1, 2, 3) for t in range(50)]
-    REP.set_progress(done=0, total=len(tasks), unit="试次")
+    REP.set_progress(done=0, total=len(tasks), unit="trials")
     rt = RateTracker()
     rows = []
     with make_pool() as pool:
@@ -261,14 +261,14 @@ def stage_s3():
             rows.extend(r)
             REP.set_progress(done=i)
             if i % 10 == 0 or i == len(tasks):
-                REP.line(f"[质量检查] 试次 {i}/{len(tasks)} | {rt.text(i, len(tasks), '试次')}")
+                REP.line(f"[Quality checks] trial {i}/{len(tasks)} | {rt.text(i, len(tasks), 'trial')}")
     df = pd.DataFrame(rows)
     df.to_csv(OUT / "qc/channel_trial_metrics.csv", index=False)
     summ = df.groupby("label").agg(rms_median=("rms", "median"), sat_mean=("sat_frac", "mean"),
                                    nonfinite_sum=("n_nonfinite", "sum"),
                                    longest_constant_p95=("longest_constant", lambda s: float(np.quantile(s, 0.95)))).reset_index()
     summ.to_csv(OUT / "qc/channel_summary.csv", index=False)
-    REP.line(f"非有限值合计 {df.n_nonfinite.sum()}；饱和比例中位数 {df.sat_frac.median():.2e}")
+    REP.line(f"Total nonfinite samples {df.n_nonfinite.sum()}; median saturation fraction {df.sat_frac.median():.2e}")
     # focused pairs on all 150 trials
     focus = orig_pairs()
     focus = focus[focus.pair_index.isin([0, 3, 6, 7, 8, 9, 10, 31, 33, 53, 54, 59])]
@@ -310,10 +310,10 @@ def stage_s4():
                 todo.append(dict(ses=ses, trial=trial, i=int(r.channel_i), j=int(r.channel_j),
                                  path=str(ckdir / f"p{r.pair_index:03d}_t{t:03d}.npz"),
                                  pair_index=int(r.pair_index), t=t))
-    REP.line(f"同束 112 对中复用已有检查点 {reused} 对；需新算 {len(todo)} 个试次×对")
+    REP.line(f"Of 112 within-bundle pairs, {reused} reuse existing checkpoints; {len(todo)} trial/pair records need new estimates")
     # skip existing
     todo2 = [t for t in todo if not Path(t["path"]).exists()]
-    REP.line(f"断点续跑：可跳过 {len(todo)-len(todo2)}，仍需 {len(todo2)}")
+    REP.line(f"Resuming: {len(todo)-len(todo2)} can be skipped; {len(todo2)} remain")
     rt = RateTracker(min_units=6, min_seconds=8)
     done = 0
     if todo2:
@@ -321,8 +321,8 @@ def stage_s4():
             for i, res in enumerate(pool.imap_unordered(_delay_task, todo2, 1), 1):
                 done = i
                 if i % 20 == 0 or i == len(todo2):
-                    REP.set_progress(done=i, total=len(todo2), unit="试次×对")
-                    REP.line(f"[延迟估计] 新算 {i}/{len(todo2)} | 复用 {reused} 对 | {rt.text(i, len(todo2), '对')}")
+                    REP.set_progress(done=i, total=len(todo2), unit="trial/pair records")
+                    REP.line(f"[Delay estimates] new {i}/{len(todo2)} | {reused} pairs reused | {rt.text(i, len(todo2), 'pair')}")
     # fill from checkpoints
     for t in todo:
         z2 = np.load(t["path"])
@@ -347,7 +347,7 @@ def stage_s4():
     prev = pd.read_csv(PREV1 / "tables/trial_pair_summary.csv")
     prev.to_csv(OUT / "delays/versionA_trial_pair_summary_reused.csv", index=False)
     save_state(bundle_reused_pairs=reused, bundle_new_pair_trials=len(todo))
-    REP.line(f"已写出 bundle_shifts_150x112x508.npz；复用 {reused} 对，新算检查点 {len(todo)}")
+    REP.line(f"Saved bundle_shifts_150x112x508.npz; reused {reused} pairs, {len(todo)} new checkpoints")
 
 
 # ============================================================================= S5 mismatch
@@ -439,14 +439,14 @@ def stage_s5():
                 tasks.append(dict(ses_x=t // 50 + 1, trial_x=t % 50, ses_y=t // 50 + 1, trial_y=t % 50,
                                   i=int(r.channel_i), j=int(r.channel_j), path=str(path), shift_samples=D))
     todo = [t for t in tasks if not Path(t["path"]).exists()]
-    REP.line(f"时间对应任务 {len(tasks)}，已有检查点 {len(tasks)-len(todo)}，仍需 {len(todo)}")
+    REP.line(f"Temporal correspondence tasks {len(tasks)}, available checkpoints {len(tasks)-len(todo)}, remaining {len(todo)}")
     rt = RateTracker(min_units=6, min_seconds=8)
     if todo:
         with make_pool() as pool:
             for i, _ in enumerate(pool.imap_unordered(_pair_task, todo, 1), 1):
                 if i % 25 == 0 or i == len(todo):
-                    REP.set_progress(done=i, total=len(todo), unit="对照估计")
-                    REP.line(f"[时间对应] {i}/{len(todo)} | {rt.text(i, len(todo), '个')}")
+                    REP.set_progress(done=i, total=len(todo), unit="control estimates")
+                    REP.line(f"[Temporal correspondence] {i}/{len(todo)} | {rt.text(i, len(todo), 'task')}")
     # summarize bundle mismatch map0 vs matched
     sh = np.load(OUT / "checkpoints/bundle_shifts_150x112x508.npz")["shifts"]
     rows = []
@@ -464,7 +464,7 @@ def stage_s5():
                                                         for t in range(150)]) == 0).mean()),
                          delta_mean_abs=float(matched.mean() - mm.mean())))
     pd.DataFrame(rows).to_csv(OUT / "mismatch/bundle_matched_vs_mismatch_map0.csv", index=False)
-    REP.line("已写出 mismatch/bundle_matched_vs_mismatch_map0.csv")
+    REP.line("Saved mismatch/bundle_matched_vs_mismatch_map0.csv")
 
 
 # ============================================================================= S6 injection
@@ -529,7 +529,7 @@ def stage_s6():
                                               label=lab, k=k))
                             k += 1
     todo = [t for t in tasks if not Path(t["path"]).exists()]
-    REP.line(f"注入条件 {len(tasks)}，仍需 {len(todo)}")
+    REP.line(f"Injection conditions {len(tasks)}; {len(todo)} remain")
     recs = []
     rt = RateTracker()
     with make_pool() as pool:
@@ -537,7 +537,7 @@ def stage_s6():
         if todo:
             for i, res in enumerate(pool.imap(_inject_task, todo), 1):
                 if i % 10 == 0 or i == len(todo):
-                    REP.line(f"[注入] {i}/{len(todo)} | {rt.text(i, len(todo), '条件')}")
+                    REP.line(f"[Injection] {i}/{len(todo)} | {rt.text(i, len(todo), 'condition')}")
     for t in tasks:
         z = np.load(t["path"], allow_pickle=True)
         recs.append(dict(label=t["label"], ses=t["ses"], trial=t["trial"], tau=str(t["tau"]),
@@ -549,7 +549,7 @@ def stage_s6():
     pd.DataFrame(recs).to_csv(OUT / "injection/recovery_all_conditions.csv", index=False)
     g = pd.DataFrame(recs).groupby(["tau", "mix", "amp"]).agg(rmse=("rmse", "median"), recover2=("recover2", "median")).reset_index()
     g.to_csv(OUT / "injection/recovery_by_condition.csv", index=False)
-    REP.line("注入实验全部条件已汇总（不挑选最好条件）")
+    REP.line("Summarized every injection condition")
 
 
 # ============================================================================= S7 epochs + macro
@@ -591,10 +591,10 @@ def stage_s7():
     idx = {lab: col_of[lab] for lab in want if lab in col_of}
     missing = [lab for lab in want if lab not in idx]
     if missing:
-        raise RuntimeError(f"宏电极序列中缺少标签 {missing}；可用 {sorted(col_of)[:12]}…")
+        raise RuntimeError(f"Missing macroelectrode label {missing}; available labels {sorted(col_of)[:12]}…")
     if any(v < 0 or v >= 48 for v in idx.values()):
-        raise RuntimeError(f"宏电极列号越界: {idx}")
-    REP.line("宏电极列映射 " + ", ".join(f"{k}→{v}" for k, v in sorted(idx.items())))
+        raise RuntimeError(f"Macroelectrode column out of range: {idx}")
+    REP.line("Macroelectrode column mapping " + ", ".join(f"{k}→{v}" for k, v in sorted(idx.items())))
     mac_rows = []
     _init()
     for t in range(50):
@@ -607,9 +607,9 @@ def stage_s7():
                                  zero_frac=float((shf == 0).mean()),
                                  W=W_MACRO, H=H_MACRO, max_shift=MAX_SHIFT_MACRO))
         if (t + 1) % 10 == 0:
-            REP.line(f"[宏电极] ses-01 试次 {t+1}/50")
+            REP.line(f"[Macroelectrodes] ses-01 trial {t+1}/50")
     pd.DataFrame(mac_rows).to_csv(OUT / "macro/ses01_adjacent_contacts.csv", index=False)
-    REP.line(f"宏电极参数 W={W_MACRO} H={H_MACRO} 搜索±{MAX_SHIFT_MACRO}（{W_MACRO/FS_MACRO*1000:.2f} ms 窗）")
+    REP.line(f"Macroelectrode settings: W={W_MACRO}, H={H_MACRO}, search ±{MAX_SHIFT_MACRO} (window {W_MACRO/FS_MACRO*1000:.2f} ms)")
 
 
 # ============================================================================= S8 stats
@@ -665,7 +665,7 @@ def stage_s8():
         rows[k]["M2_L10_ci95_high"] = float(delta[k] + bo["half95"][1, k]) if bo["half95"].ndim == 2 else float(delta[k] + bo["half95"][k])
         rows[k]["M0_L10_raw_p"] = float(bo["p"][0, k]) if bo["p"].ndim == 2 else np.nan
     pd.DataFrame(rows).to_csv(OUT / "realdata/bundle_differences_uncalibrated.csv", index=False)
-    REP.line("真实数据点估计已写出。下列校准决定能否把 p 值当作正式显著性。")
+    REP.line("Saved real-data point estimates. Calibration determines whether p-values can support formal inference.")
     # lightweight calibration of FWER for M0/M2 L=10 using AR(1) on 4-dim residuals
     # residualize real trial means
     with np.errstate(invalid="ignore", divide="ignore"):
@@ -680,7 +680,7 @@ def stage_s8():
             den += (x[:-1] ** 2).sum()
         phi_hat.append(num / den if den else 0.0)
     sd = y.std(0)
-    REP.line("束级试次均值 lag-1 φ=" + ", ".join(f"{b} {p:.3f}" for b, p in zip(BUNDLES, phi_hat)))
+    REP.line("Lag-1 correlation of bundle-level trial means: φ=" + ", ".join(f"{b} {p:.3f}" for b, p in zip(BUNDLES, phi_hat)))
     # calibration scenarios
     def sim_y(phi, rng, nsim, offset=None):
         out = np.zeros((nsim, 150, 4))
@@ -717,40 +717,40 @@ def stage_s8():
     # smaller nsim for speed but report honestly: 400 cal, 1000 val for phi=0 and phi=0.6
     specs = [("A_iid", 0.0, 400, [SEED, 1, 0]), ("B2_phi0.6", 0.6, 400, [SEED, 1, 1])]
     for name, phi, nsim, seed in specs:
-        REP.set_task(f"校准 {name} nsim={nsim}")
+        REP.set_task(f"Calibration {name} nsim={nsim}")
         rej, n = fwer_of("M2", phi, nsim, seed[2] + SEED * 10)
         cal_rows.append(dict(stage="calibration", method="M2_L10", scenario=name, nsim=n,
                              fwer=rej / n, fwer_events=rej, alpha=0.05))
-        REP.line(f"  校准 {name} M2 L=10 FWER={rej}/{n}={rej/n:.3f}")
+        REP.line(f"  Calibration {name} M2 L=10 FWER={rej}/{n}={rej/n:.3f}")
     val_rows = []
     specs_v = [("A_iid", 0.0, 1000, [SEED, 2, 0]), ("B2_phi0.6", 0.6, 1000, [SEED, 2, 1])]
     for name, phi, nsim, seed in specs_v:
-        REP.set_task(f"独立验证 {name} nsim={nsim}")
+        REP.set_task(f"Independent validation {name} nsim={nsim}")
         rej, n = fwer_of("M2", phi, nsim, seed[2] + SEED * 20)
         from scipy.stats import beta
         lo = 0 if rej == 0 else beta.ppf(0.025, rej, n - rej + 1)
         hi = 1 if rej == n else beta.ppf(0.975, rej + 1, n - rej)
-        verdict = "通过" if hi <= 0.075 else ("不通过" if lo > 0.075 else "证据不足")
+        verdict = "pass" if hi <= 0.075 else ("fail" if lo > 0.075 else "insufficient evidence")
         val_rows.append(dict(stage="validation", method="M2_L10", scenario=name, nsim=n,
                              fwer=rej / n, fwer_events=rej, cp_low=float(lo), cp_high=float(hi),
                              verdict=verdict, alpha=0.05))
-        REP.line(f"  验证 {name} M2 L=10 FWER={rej}/{n}={rej/n:.3f} CP[{lo:.3f},{hi:.3f}] {verdict}")
+        REP.line(f"  Validation {name} M2 L=10 FWER={rej}/{n}={rej/n:.3f} CP[{lo:.3f},{hi:.3f}] {verdict}")
     pd.DataFrame(cal_rows).to_csv(OUT / "calibration/calibration_fwer.csv", index=False)
     pd.DataFrame(val_rows).to_csv(OUT / "calibration/validation_fwer.csv", index=False)
-    passed = all(r["verdict"] == "通过" for r in val_rows)
+    passed = all(r["verdict"] == "pass" for r in val_rows)
     save_state(m2_l10_validation_passed=passed)
     # final decision table
     dec = pd.DataFrame(rows)
     if not passed:
-        dec["decision"] = "证据不足（M2 L=10 未在独立验证核心情景通过）"
-        dec["interpretation"] = "描述性差值可报告；不能作为校准后的显著性"
+        dec["decision"] = "insufficient evidence (M2 L=10 failed the independent core-scenario criteria)"
+        dec["interpretation"] = "Descriptive difference only; formal calibration criterion failed"
     else:
-        dec["decision"] = ["显著（家族 0.05）" if min(6 * p, 1) < 0.05 else "不显著（不等于无差异）"
+        dec["decision"] = ["significant (familywise 0.05)" if min(6 * p, 1) < 0.05 else "nonsignificant (does not establish equivalence)"
                            for p in dec["M2_L10_raw_p"]]
     # mapping restriction
-    dec["anatomy"] = "不宜解释为确认的脑区差异（微电极位置与 NWB 标签冲突；版本 C 仅为电极束）"
+    dec["anatomy"] = "Anatomical differences remain unconfirmed: microwire locations conflict with NWB labels; version C represents bundles only."
     dec.to_csv(OUT / "realdata/final_decisions.csv", index=False)
-    REP.line("正式判定已按预定规则写出：通过校准才能称显著，否则证据不足")
+    REP.line("Saved decisions using the prespecified rule: significance requires successful calibration; otherwise report insufficient evidence.")
 
 
 # ============================================================================= S9
@@ -765,10 +765,10 @@ def stage_s9():
     for b in BUNDLES:
         d = bp[bp.bundle == b]
         ax.scatter(d.contact_gap, d.mean_abs_nz, s=18, label=b)
-    ax.set_xlabel("同束触点编号差")
-    ax.set_ylabel("非零 |delay| 均值 (ms)")
+    ax.set_xlabel("Difference in contact index within bundle")
+    ax.set_ylabel("Mean nonzero |delay| (ms)")
     ax.legend()
-    ax.set_title("版本 C：同束绝对延迟（描述性）")
+    ax.set_title("Version C: within-bundle absolute delays (descriptive)")
     fig.tight_layout()
     fig.savefig(FIG / "fig_bundle_delay_vs_gap.png", dpi=160)
     fig.savefig(FIG / "fig_bundle_delay_vs_gap.pdf")
@@ -778,9 +778,9 @@ def stage_s9():
     ax.scatter(mm.mismatch_mean_abs, mm.matched_mean_abs, s=12)
     lim = [0, max(mm.mismatch_mean_abs.max(), mm.matched_mean_abs.max())]
     ax.plot(lim, lim, "k-", lw=0.6)
-    ax.set_xlabel("错配 |delay| 均值 (ms)")
-    ax.set_ylabel("真实配对 |delay| 均值 (ms)")
-    ax.set_title("真实配对 vs 会话内 set_size 错配")
+    ax.set_xlabel("Mean mismatched |delay| (ms)")
+    ax.set_ylabel("Mean matched |delay| (ms)")
+    ax.set_title("Matched trials vs within-session set-size-matched mismatches")
     fig.tight_layout()
     fig.savefig(FIG / "fig_matched_vs_mismatch.png", dpi=160)
     fig.savefig(FIG / "fig_matched_vs_mismatch.pdf")
@@ -789,8 +789,8 @@ def stage_s9():
     fig, ax = plt.subplots(figsize=(7, 3.2))
     ax.plot(range(len(inj)), inj.recover2, "o-")
     ax.set_xticks(range(len(inj)), [f"{r.tau}/m{r.mix}/a{r.amp}" for r in inj.itertuples()], rotation=75, fontsize=6)
-    ax.set_ylabel("容限 2 样本内恢复比例（中位数）")
-    ax.set_title("注入延迟：全部条件（不挑选）")
+    ax.set_ylabel("Recovery within two samples (median fraction)")
+    ax.set_title("Injected delays: all tested conditions")
     fig.tight_layout()
     fig.savefig(FIG / "fig_injection_recovery.png", dpi=160)
     fig.savefig(FIG / "fig_injection_recovery.pdf")
@@ -798,7 +798,7 @@ def stage_s9():
     # write reports
     _write_reports()
     expected = [
-        "analysis_plan.md", "REPORT_CN.md", "SUMMARY_CN.md",
+        "analysis_plan.md", "REPORT.md", "SUMMARY.md",
         "methods_paragraph_EN.md", "response_reviewer_EN.md",
         "provenance/nwb_sha256.csv", "provenance/subject_session_inventory.csv",
         "electrodes/electrode_findings.csv", "electrodes/five_mapping_questions.md",
@@ -811,7 +811,7 @@ def stage_s9():
     empty = [e for e in expected if (OUT / e).exists() and (OUT / e).stat().st_size == 0]
     integ = dict(expected=len(expected), missing=missing, empty=empty)
     (OUT / "integrity_check.json").write_text(json.dumps(integ, indent=2, ensure_ascii=False))
-    REP.line(f"完整性：缺失 {missing} 空文件 {empty}")
+    REP.line(f"Integrity check: {missing} missing, {empty} empty")
     return not missing and not empty
 
 
@@ -824,44 +824,44 @@ def _write_reports():
     timing = pd.read_csv(OUT / "timing_summary.csv") if (OUT / "timing_summary.csv").exists() else pd.DataFrame()
     st = load_state()
     L = []
-    L.append("# 真实数据综合审计报告")
+    L.append("# Comprehensive real-data audit")
     L.append("")
-    L.append("目录：`realdata_comprehensive_audit_20261031_2228/`。性质：前两轮之后的补充分析，不是预注册。")
+    L.append("Directory: `realdata_comprehensive_audit_20261031_2228/`. These supplementary analyses followed the first two audits and were not preregistered.")
     L.append("")
-    L.append("## 三种结论分开")
+    L.append("## Findings at three levels")
     L.append("")
-    L.append("### A. 计算层面")
-    L.append("三个 NWB 按文件名加载；延迟参数与第一轮相同；60 个原区内对全部复用已核验检查点。向量化实现与原函数在基准对上中心与移位完全一致后，才用于新的同束对。程序能复现延迟数组，不等于解剖标签正确，也不等于延迟是神经传导。")
+    L.append("### A. Computation")
+    L.append("The three NWB files were loaded by filename. Delay settings match the first audit. All 60 original within-region pairs reuse verified checkpoints. The vectorized estimator was used for new within-bundle pairs after its centers and shifts exactly matched the original function on the benchmark pairs. Reproducible delay arrays alone cannot establish anatomical labels or neural conduction times.")
     L.append("")
-    L.append("### B. 方法与信号层面")
-    L.append(f"注入实验条件数见 `injection/recovery_all_conditions.csv`。按条件中位恢复比例（容限 2 样本）见该表与图。错配对照：{len(mm)} 个同束对的真实配对 vs map0 错配均值差中位数 {mm.delta_mean_abs.median():.3f} ms。")
-    L.append("错配仍保留相同任务时段，因此错配均值接近真实配对时，只能说明估计量不一定依赖同一试次的精细时间对齐，不能证明不存在任何耦合。")
+    L.append("### B. Signal and estimation")
+    L.append(f"`injection/recovery_all_conditions.csv` lists each injection condition; the table and figure report the median fraction within two samples of truth. Across {len(mm)} within-bundle pairs, the median difference between matched and map0 mismatched mean delays is {mm.delta_mean_abs.median():.3f} ms.")
+    L.append("Mismatched trials retain the same task phase. Similar matched and mismatched means suggest the statistic may be insensitive to precise within-trial alignment; coupling remains possible.")
     L.append("")
-    L.append("### C. 神经解释层面")
-    L.append("微电极序列与宏电极共用电极表行（E2/E16）。MTG/STG 作为微电极脑区**不能确认**。版本 C 只用束名。正式束间比较：" + "；".join(f"{r.A}−{r.B} Δ={r.difference_ms:+.3f} ms → {r.decision}" for r in dec.itertuples()) + "。")
+    L.append("### C. Neurophysiological interpretation")
+    L.append("Microelectrode and macroelectrode series share electrode-table rows (E2/E16). MTG/STG labels cannot establish microelectrode anatomy. Version C uses bundle names. Formal bundle comparisons follow. " + "; ".join(f"{r.A}−{r.B} Δ={r.difference_ms:+.3f} ms → {r.decision}" for r in dec.itertuples()) + ".")
     L.append("")
-    L.append("## 校准")
+    L.append("## Calibration")
     L.append(val.to_string(index=False))
     L.append("")
-    L.append(f"M2 L=10 独立验证通过：{st.get('m2_l10_validation_passed')}")
+    L.append(f"M2 L=10 passed independent validation: {st.get('m2_l10_validation_passed')}")
     L.append("")
-    L.append("## 映射五问")
+    L.append("## Five mapping questions")
     L.append((OUT / "electrodes/five_mapping_questions.md").read_text())
     L.append("")
-    L.append("## 对审稿意见")
-    L.append("- 2.4.2：重叠窗口已不再当作独立观测；本轮仍无在 φ=0.6 下校准合格的显著性。")
-    L.append("- 2.5：单位、滤波、微电极位置存在冲突；近零对未证实为重复通道。")
-    L.append("- 2.7：不能把四脑区顺序写成确认的神经解剖差异；海马较高依赖 AHL1 组合（上一轮）。")
+    L.append("## Reviewer comments")
+    L.append("- 2.4.2: Overlapping windows are grouped for inference. At φ=0.6, calibration did not support significance.")
+    L.append("- 2.5: Metadata conflict on units, filters and microwire locations. Near-zero delays do not confirm duplicate channels.")
+    L.append("- 2.7: The four-group ordering cannot establish anatomical differences. In the previous audit, the higher hippocampal estimate depended on the AHL1 contact composition.")
     L.append("")
-    L.append("## 耗时")
+    L.append("## Runtime")
     if len(timing):
         L.append(timing.to_string(index=False))
-    (OUT / "REPORT_CN.md").write_text("\n".join(L), encoding="utf-8")
-    (OUT / "SUMMARY_CN.md").write_text(
-        "# 简版摘要\n\n"
-        "主分析仍是 sub-01 三个会话。微电极脑区标签不可靠，主描述改为四束同束对。"
-        "延迟估计可复现。注入与错配结果见报告。正式推断：" +
-        ("校准未通过，六组束间差均为证据不足。" if not st.get("m2_l10_validation_passed") else "见 final_decisions.csv") +
+    (OUT / "REPORT.md").write_text("\n".join(L), encoding="utf-8")
+    (OUT / "SUMMARY.md").write_text(
+        "# Summary\n\n"
+        "The primary analysis covers three sessions in sub-01. Given uncertain microelectrode anatomy, the primary description covers within-bundle pairs in four bundles. "
+        "The delay estimates are reproducible. The report gives injection and mismatch results. Formal inference: " +
+        ("calibration failed; evidence was insufficient for all six between-bundle differences." if not st.get("m2_l10_validation_passed") else "see final_decisions.csv") +
         "\n", encoding="utf-8")
     (OUT / "methods_paragraph_EN.md").write_text(
         "Draft Methods (the manuscript has not been edited). We audited DANDI 000574 NWB files for sub-01 sessions 01–03. "
@@ -878,7 +878,7 @@ def _write_reports():
         "Reviewer 2.7: we cannot interpret MTG/STG microelectrode groupings as verified anatomy. Same-shaft pairs are the only grouping supported without assuming the disputed table. Sign of a delay is not treated as a conduction direction.\n",
         encoding="utf-8")
     if REP:
-        REP.line("已写出 REPORT_CN.md、SUMMARY_CN.md、英文 Methods 与回复草稿（未声称稿件已改）")
+        REP.line("Saved REPORT.md, SUMMARY.md, Methods and the reviewer-response draft. Manuscript editing was outside this audit.")
 
 
 def main():
@@ -889,7 +889,7 @@ def main():
     want = [s.strip() for s in args.stages.split(",") if s.strip()]
     REP = Reporter(OUT, heartbeat_s=10)
     names = dict(STAGES)
-    REP.line(f"真实数据综合审计启动 | PID {os.getpid()} | 阶段 {want} | {OUT}")
+    REP.line(f"Starting comprehensive real-data audit | PID {os.getpid()} | stages {want} | {OUT}")
     fn = {k: globals()[f"stage_{k}"] for k, _ in STAGES}
     done, complete = [], False
     for s in want:
@@ -897,24 +897,24 @@ def main():
         try:
             r = fn[s]()
             if s == "s9" and r is False:
-                REP.end_stage("完成（缺项）")
+                REP.end_stage("complete with missing items")
                 done.append(s)
                 continue
-            REP.end_stage("完成")
+            REP.end_stage("complete")
             done.append(s)
             complete = s == "s9" and r is True
         except Exception as e:
-            REP.line(f"[{names[s]}] 错误：{type(e).__name__}: {e}")
+            REP.line(f"[{names[s]}] Error: {type(e).__name__}: {e}")
             REP.line(traceback.format_exc())
-            REP.end_stage("失败", note=str(e)[:200])
+            REP.end_stage("failed", note=str(e)[:200])
             break
     if complete:
-        REP.line("全部完成")
+        REP.line("All stages complete")
     else:
         left = [names[x] for x in want if x not in done]
-        REP.line(f"本次结束。完成：{[names[x] for x in done]}；未完成：{left}")
+        REP.line(f"Finished. Complete: {[names[x] for x in done]}; incomplete: {left}")
     own, kids = peak_rss_mb()
-    REP.line(f"峰值内存 主进程 {own:.0f} MB / 子进程 {kids:.0f} MB")
+    REP.line(f"Peak memory: parent {own:.0f} MB / children {kids:.0f} MB")
     REP.close()
 
 

@@ -585,7 +585,7 @@ for subject, session in subject_sessions:
     # The regions are not unique, some electrodes have the same region
     # We want to find the unique regions and sort them, then create a mapping for each region
     # The regions are in the form of ['Amygdala', 'Hippocampus', 'Inferior Temporal Gyrus',
-    # 'Insular Gyrus', 'Middle Temporal Gyrus', 'Superior Temporal Gyrus']， remove the 'unspecific' region
+    # 'Insular Gyrus', 'Middle Temporal Gyrus', 'Superior Temporal Gyrus'], remove the 'unspecific' region
     regions = micro_data['electrode_major_regions']
     unique_regions = np.unique(regions)
     unique_regions = unique_regions[unique_regions != 'unspecific']

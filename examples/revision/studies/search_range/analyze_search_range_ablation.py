@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aggregate the discrete search-range ablation and write tables, figures, and the Chinese report."""
+"""Aggregate the discrete search-range ablation and write tables, figures, and the analysis report."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib import font_manager
 from scipy import stats
 
 FS = 5120.0
@@ -23,21 +22,6 @@ SHIFTS = np.arange(8, 18, dtype=int)
 SEG_CENTERS = (SEG_LEN // 2 + SEG_LEN * np.arange(N_SEGMENTS)).astype(int)
 ANALYSIS_NAME = {0: "A", 1: "B"}
 RANGE_NAME = {0: "quarter", 1: "half"}
-
-
-def setup_font():
-    for path in (
-        "/System/Library/Fonts/PingFang.ttc",
-        "/System/Library/Fonts/STHeiti Light.ttc",
-        "/Library/Fonts/Arial Unicode.ttf",
-    ):
-        if Path(path).exists():
-            font_manager.fontManager.addfont(path)
-            name = font_manager.FontProperties(fname=path).get_name()
-            plt.rcParams["font.family"] = name
-            plt.rcParams["axes.unicode_minus"] = False
-            return name
-    return "default"
 
 
 def mean_ci(values: np.ndarray, alpha: float = 0.05):
@@ -721,166 +705,164 @@ def write_report(out_dir: Path, context: dict):
     completion = json.loads((out_dir / "completion_status.json").read_text())
     lines = []
     a = lines.append
-    a("# 离散模拟搜索范围消融：|t|≤⌊W/4⌋ 与 |t|≤⌊W/2⌋")
+    a("# Discrete-delay search bounds: |t| ≤ ⌊W/4⌋ and |t| ≤ ⌊W/2⌋")
     a("")
-    a("本报告只覆盖论文中的分段离散时变延迟模拟。连续延迟、iEEG 和 Patch-seq 不在本次实验内。数字来自本次实际运行；公式能推出的关系单独标明；没有直接证据的机制标为待验证。")
+    a("This experiment uses the manuscript’s piecewise discrete-delay simulation. The continuous model, iEEG and Patch-seq are outside its scope. Measurements below are distinguished from algebraic bounds and possible mechanisms.")
     a("")
-    a("## 1. 实际运行发现的结论")
+    a("## 1. Findings")
     a("")
     a(context["lead"])
     a("")
-    a("## 2. 来源、环境和可重跑入口")
+    a("## 2. Sources, environment and reproduction")
     a("")
-    a("工作区没有 `.git` 目录，不能报告当前分支或 `git status`。此前审计记录压缩包注释提交为 `1a6c4f23818bcfe3152f947c54c553a92edeca0c`；本次没有重新验证该提交，因为仓库元数据不在工作区里。")
+    a("The original audit workspace lacked Git metadata. The archived ZIP identified commit 1a6c4f23818bcfe3152f947c54c553a92edeca0c in its comment. The audit could not verify that commit against local Git objects.")
     a("")
-    a(f"- 解释器：`{env['executable']}`")
-    a(f"- Python：`{env['python'].split()[0]}`")
-    a(f"- NumPy {env['numpy']}，SciPy {env['scipy']}，pandas {env['pandas']}，scikit-learn {env['sklearn']}")
-    a(f"- dtw {env['dtw']}，tslearn {env['tslearn']}，scikit-image {env['skimage']}")
-    a(f"- 平台：{env['platform']}，{env['machine']}")
-    a(f"- NeuroTD 导入文件：`{env['neurotd_time_varying_shift']}`")
+    a(f"- Interpreter: {env['executable']}")
+    a(f"- Python: {env['python'].split()[0]}")
+    a(f"- NumPy {env['numpy']}, SciPy {env['scipy']}, pandas {env['pandas']}, scikit-learn {env['sklearn']}")
+    a(f"- dtw {env['dtw']}, tslearn {env['tslearn']}, scikit-image {env['skimage']}")
+    a(f"- Platform: {env['platform']}, {env['machine']}")
+    a(f"- Imported NeuroTD source: {env['neurotd_time_varying_shift']}")
     a("")
-    a("源文件 SHA256：")
+    a("Source SHA-256 checksums:")
     a("")
     for name, digest in env["source_sha256"].items():
-        a(f"- `{name}`：`{digest}`")
+        a(f"- {name}: {digest}")
     a("")
-    a("本次没有修改 `src/neurotd`。消融脚本在候选集合上重新求最小加权 MSE，不把 half 的估计裁剪成分 quarter。")
+    a("The experiment retained the estimator in src/neurotd. It minimized the weighted MSE separately over each candidate set. The quarter-window estimates were computed directly.")
     a("")
-    a("重跑：")
+    a("Run from the repository root:")
     a("")
     a("```bash")
     a("cd /path/to/NeuroTD")
-    a("MPLBACKEND=Agg PYTHONPATH=src \\")
-    a("  python \\")
-    a("  reproduction_audit/discrete_search_range_ablation_20260926/run_search_range_ablation.py")
+    a("python examples/revision/run.py run --workspace revision_runs/range --study search_range --script run_search_range_ablation.py")
     a("```")
     a("")
-    a("已完成且状态为 ok 的种子会跳过。`--force` 重算。`--analyze-only` 只根据检查点重做表、图和本报告。")
+    a("Completed seeds with an OK checkpoint are skipped. Use --force to recompute them or --analyze-only to rebuild the tables, figures and report from checkpoints.")
     a("")
-    a(f"完成状态：期望 {completion['expected']} 个网格×种子任务，缺失或失败 {len(completion['missing_or_failed'])} 个。")
+    a(f"Completion: {completion['expected']} expected grid-by-seed jobs, {len(completion['missing_or_failed'])} missing or failed.")
     if completion["missing_or_failed"]:
         for item in completion["missing_or_failed"]:
-            a(f"- 未完成：{item}")
+            a(f"- Incomplete: {item}")
     else:
-        a("两套网格、seed 0–29 全部有 ok 检查点。")
+        a("Both grids have successful checkpoints for seeds 0–29.")
     a("")
-    a("seed 0、当前网格、analysis A、half 与 `reproduction_audit_20260924/discrete/simulation_results_discrete.csv` 的最大绝对差：")
+    a("Maximum absolute differences from the September 24 discrete simulation_results_discrete.csv archive for seed 0, the current grid, analysis A and the half-window radius:")
     a("")
     for k, v in verification["prior_csv"]["max_abs"].items():
-        a(f"- `{k}`：{v:.3e}")
+        a(f"- {k}: {v:.3e}")
     a("")
-    a("该对照同时包含 NeuroTD、DTW、CTW、FFT 和质量分 E。seed 0 还把向量化 half 与 `compute_windowed_mse_with_hop` 的窗口中心和整数延迟逐点比较，并把 quarter 与按原循环改写的参照循环逐点比较。")
+    a("The comparison covers NeuroTD, DTW, CTW, FFT and E. The seed 0 check compared vectorized half-window centers and integer delays against compute_windowed_mse_with_hop, and the quarter-window implementation against a reference loop.")
     a("")
-    a("## 3. 参数核对")
+    a("## 3. Parameter checks")
     a("")
-    a("`SignalParameters` 的默认 `sample_per_seg` 是 512，因此它自己的 `sampling_rate` 也是 5120 Hz。分段信号另按显式 `fs=5120` 构造。两者数值相同；换算毫秒时脚本传入这个显式 `fs`，不用函数默认参数碰运气。1 sample = 1000/5120 = 0.1953125 ms。")
+    a("SignalParameters defaults to 512 samples per segment and a sampling rate of 5120 Hz. The segmented signal uses an explicit fs=5120. Millisecond conversions use that explicit rate: 1 sample = 1000/5120 = 0.1953125 ms.")
     a("")
-    a(f"信号长度 {params['n_samples']}，10 段，每段 {params['n_samples_per_seg']} 点。波形是 `my_ricker`，宽度参数 a = N//16 = {params['ricker_width_a']}。真实分段延迟是 {params['shifts']}，最大真值 {params['shift_max']} sample。矩形窗，H = W//2，`continuous=False`。")
+    a(f"Signal length: {params['n_samples']} samples in ten segments of {params['n_samples_per_seg']} samples. The my_ricker width is a = N//16 = {params['ricker_width_a']}. True segment shifts: {params['shifts']}. Maximum true shift: {params['shift_max']} samples. Windows are rectangular, H = W//2 and continuous=False.")
     a("")
-    a("原 `compute_windowed_mse_with_hop` 把 `max_shift = W//2` 同时用于候选延迟和有效窗口起点。本实验拆开：")
+    a("The original compute_windowed_mse_with_hop uses max_shift = W//2 for both the search radius and the valid starting positions. Two analyses separate these choices:")
     a("")
-    a("- 主分析 A：两种范围都使用 half 的窗口起点 `margin = ⌊W/2⌋`。窗口中心和样本支持相同，只改变候选延迟。")
-    a("- 补充分析 B：quarter 使用 `margin = ⌊W/4⌋`，half 仍是 `⌊W/2⌋`。half 的 B 与 A 是同一次计算。")
+    a("- Primary analysis A uses margin = ⌊W/2⌋ for both search ranges. Window centers and data support are held fixed as the set of candidate shifts changes.")
+    a("- Sensitivity analysis B uses margin = ⌊W/4⌋ for the quarter radius and ⌊W/2⌋ for the half radius. The half-radius computation is shared between A and B.")
     a("")
-    a("候选集合含端点：quarter 为 `[-⌊W/4⌋, ⌊W/4⌋]`，half 为 `[-⌊W/2⌋, ⌊W/2⌋]`。并列最小 MSE 保留扫描中先遇到的 τ，也就是更负的 τ；保存的延迟是 `-τ`。")
+    a("Both endpoints are included. The quarter-window range is [−⌊W/4⌋, ⌊W/4⌋] and the half-window range is [−⌊W/2⌋, ⌊W/2⌋]. At tied minima the first scanned (more negative) τ is retained. The stored delay is −τ.")
     a("")
-    a("质量分使用原函数返回值。代码里的 E = sqrt(mean(r_k))，r_k 是逐窗口对称归一化 RMSE，选窗是 E 的 argmin，平局取较小 W。这不是正文公式 (6) 的 q = 1/(1+sqrt(mean(r_k^2)))。q 被存成旁路列，不参与选窗。二者不是同一统计量的单调变换，argmin E 与 argmax q 可以选出不同 W。")
+    a("E = sqrt(mean(r_k)), where r_k is the implemented symmetric normalized RMSE in window k. Window selection minimizes E and breaks ties using the smaller W. Manuscript Equation (6), q = 1/(1+sqrt(mean(r_k²))), is recorded only as a diagnostic. Its aggregation differs from E, so maximizing q can yield another window.")
     a("")
-    a("同一 seed 只从 `default_rng(seed)` 抽取两段标准正态，再乘以该噪声水平的标准差。这与原脚本每个组合都重置种子后调用两次 `generate_noisy` 一致，因此同一 seed、同一噪声下全部 W 和两种搜索范围共用同一对 x、y。检查没有发现同一条件内 x 或 y 的哈希分裂。")
+    a("For each seed, default_rng(seed) draws two standard normal arrays and scales them by the noise SD. This reproduces the original two generate_noisy calls after resetting the seed for each combination. All window sizes and both search radii therefore use identical x and y within each seed and noise condition. Hashes agreed within each condition.")
     if integrity["issues"]:
         a("")
-        a("完整性问题：")
+        a("Input integrity warnings:")
         for item in integrity["issues"]:
             a(f"- {item}")
     a("")
-    a("### 哪套网格对应当前复现")
+    a("### Simulation grids")
     a("")
-    a("当前网格 W = 33, 65, 129, 257, 513, 1025，噪声 `linspace(0, 0.2, 11)`，是 `fig2_simulation_discrete_shift.py` 里实际执行的网格。2026-09-24 的离散复现和其后的 S1 对照使用的就是这套，不是注释里的旧网格。")
+    a("The executable grid in fig2_simulation_discrete_shift.py uses W = 33, 65, 129, 257, 513, 1025 and noise levels linspace(0, 0.2, 11). The September 24 discrete reproduction and subsequent S1 comparison used this grid.")
     a("")
-    a("注释中的历史网格 W = 51, 119, 171, 257, 513, 1281，噪声 `linspace(0, 0.2, 10)`，脚本写明是 2026-01-16 之前的 legacy。本次把它完整跑完并分开汇总。没有新的手稿证据把它确认成投稿参数，因此下面不把它叫作已确认的投稿设置。")
+    a("The historical grid in the source comments uses W = 51, 119, 171, 257, 513, 1281 and noise levels linspace(0, 0.2, 10). The script identifies this as the setup prior to January 16, 2026. It was fully run and is reported separately. Its use in the submitted manuscript has not been confirmed.")
     a("")
-    a("论文离散模拟没有第三套被脚本写明的条件。`fig3` 是连续延迟。40 段诊断只出现在后来的选窗审计里，不是这篇离散模拟，本次没有并入。")
+    a("The discrete script identifies these two grids. Figure 3 uses continuous delays. The 40-segment setting belongs to a later diagnostic and is outside this analysis.")
     a("")
-    a("### 真值能否落入搜索半径")
+    a("### Does the search include the true delay?")
     a("")
-    a("这是由延迟 8…17 和半径定义推出的，并与运行得到的窗口级越界比例互相核对。端点包含在内，所以真值等于半径时不算越界。")
+    a("The radii and true delays of 8–17 samples determine reachability. A true delay at the inclusive bound is reachable. Window-level out-of-range rates were checked against these bounds.")
     a("")
-    a("| 网格 | W | ⌊W/4⌋ | ⌊W/2⌋ | 最大真值 17 超出 quarter | 超出 half | A 的窗口数 | B quarter 窗口数 | A 与 B quarter 的共同中心数 |")
+    a("| Grid | W | ⌊W/4⌋ | ⌊W/2⌋ | True maximum 17 exceeds quarter | Exceeds half | A windows | B quarter windows | Centers shared by A and B quarter |")
     a("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for grid, spec in params["grids"].items():
         for row in spec["per_window"]:
             a(
                 f"| {grid} | {row['window']} | {row['radius_quarter']} | {row['radius_half']} | "
-                f"{'是' if row['quarter_cannot_reach_max_true'] else '否'} | "
-                f"{'是' if row['half_cannot_reach_max_true'] else '否'} | "
+                f"{'yes' if row['quarter_cannot_reach_max_true'] else 'no'} | "
+                f"{'yes' if row['half_cannot_reach_max_true'] else 'no'} | "
                 f"{row['n_windows_analysis_A']} | {row['n_windows_analysis_B_quarter']} | "
                 f"{row['n_shared_A_and_B_quarter_centers']} |"
             )
     a("")
-    a("当前网格上，W=33 的 quarter 半径是 8，half 是 16；W=65 的 quarter 半径是 16。最大真值 17 因此在 W=33 的两种半径以及 W=65 的 quarter 上不可达。历史网格上，W=51 的 quarter 半径是 12，half 是 25，所以只有 quarter 达不到 17。这些是参数事实。窗口级越界比例还取决于中心落在哪一段，见第 6 节，不等于“10 段里有几段越界”的简单比例。")
+    a("On the current grid the radii for W=33 are 8 and 16 samples. At W=65 the quarter radius is 16. A true shift of 17 therefore falls outside both radii at W=33 and the quarter radius at W=65. On the historical grid W=51 has radii 12 and 25, so only the quarter radius excludes 17. Window-level rates also depend on the segments containing the centers (Section 6).")
     a("")
-    a("分析 B 的 quarter 把起点从 ⌊W/2⌋ 改到 ⌊W/4⌋，步长仍是 ⌊W/2⌋。起点差 ⌊W/4⌋ 不是步长的整数倍，所以两套中心网格相位错开。上表的共同中心数是实际交集，不是按数组下标对齐的结果。")
+    a("Quarter-radius analysis B shifts the starting margin to ⌊W/4⌋ while retaining the ⌊W/2⌋ hop. The resulting offset is not an integer multiple of the hop. Shared centers in the table refer to exact intersections of center positions.")
     a("")
-    a("## 4. 固定窗口：搜索范围本身")
+    a("## 4. Fixed windows and search radius")
     a("")
-    a("主对比是分析 A。每个 seed、每个噪声、每个 W 上，Δ = RMSE(half) − RMSE(quarter)，单位 ms。均值和 95% t 区间以 seed 为单位，n = 30。重叠窗口没有被当成独立重复。负的 Δ 表示 half 的 RMSE 更小。")
+    a("The primary comparison is analysis A. For each seed, noise level and W, Δ = RMSE(half) − RMSE(quarter), in ms. Means and paired 95% t intervals use the 30 seeds as independent units. A negative Δ favors the half radius.")
     a("")
     a(context["fixed_narrative"])
     a("")
-    a("完整的逐条件均值表在 `tables/fixed_window_paired_ci.csv`。逐 seed、逐 W 的原始行在 `tables/condition_results.csv`。")
+    a("See tables/fixed_window_paired_ci.csv for condition means and tables/condition_results.csv for seed- and window-level rows.")
     a("")
-    a("## 5. 自动选窗、oracle 和交叉窗口")
+    a("## 5. Window selection, oracle and cross-window comparisons")
     a("")
-    a("自动选窗对每个搜索范围分别取 E 最小的 W，不使用真实延迟。Oracle 对每个搜索范围分别取真实延迟 RMSE 最小的 W，只作为上界。")
+    a("For each radius, automatic selection minimizes E without using the true delays. The retrospective oracle minimizes known-delay RMSE on the same candidate set and provides a reference for attainable performance.")
     a("")
     a(context["selection_narrative"])
     a("")
-    a("交叉比较在两个被选中的 W 上同时给出两种范围的 RMSE，用来分开“同一 W 上搜索范围的直接作用”和“选中的 W 变了”。明细在 `tables/cross_window_by_seed.csv`。")
+    a("The cross-window comparison evaluates both radii at each of the two selected windows. This separates the effect of the radius at a fixed W from changes in W itself. See tables/cross_window_by_seed.csv.")
     a("")
-    a("## 6. 越界、触边、局部 MSE 和下界")
+    a("## 6. Out-of-range truths, boundary hits, local MSE and error bounds")
     a("")
-    a("范围下界是 sqrt(mean(max(|τ*|−L, 0)^2))，τ* 是原评估使用的窗口中心最近段延迟。它只描述真值不可达所强制的误差，不是方法的实际误差。实际 RMSE 可以高于下界。")
+    a("The range-imposed RMSE lower bound is sqrt(mean(max(|τ*| − L, 0)²)), with τ* the delay of the segment nearest the window center. It quantifies the unavoidable error from unreachable delays. The measured RMSE can be larger.")
     a("")
     a(context["bound_narrative"])
     a("")
-    a("在分析 A 的共同窗口上，half 的候选集合包含 quarter，因此同一加权 MSE 下 half 的最小局部 MSE 不应大于 quarter。本次分析 A 的违反次数见完整性检查。这个关系不保证 half 的真实延迟 RMSE、E 或论文 q 更优。")
+    a("At shared centers in analysis A, the half-radius set contains all quarter-radius candidates. The minimum local weighted MSE under half should therefore be no larger. The integrity check counts violations. This ordering need not hold for true delay RMSE, E or manuscript q.")
     a("")
-    a("## 7. 分段边界")
+    a("## 7. Segment boundaries")
     a("")
-    a("原评估保留：每个窗口的真值是离窗口中心最近的段中心上的延迟；中心到两侧段中心等距时，`argmin` 取序号更小的段。窗口样本支持跨过 512 的整数倍时记为边界混合窗。混合窗内部的真实延迟不一定是常数，但主 RMSE 仍用中心真值。")
+    a("As in the original evaluation, each window is assigned the delay of the segment center nearest its center. In a tie argmin selects the earlier segment. A window is marked as mixed when its support crosses a multiple of 512 samples. Its internal delay may vary, but its RMSE is evaluated against the center label.")
     a("")
     a(context["boundary_narrative"])
     a("")
-    a("## 8. 共同时间网格")
+    a("## 8. Common time grids")
     a("")
-    a("不同 W 的原生中心不同。主结果仍用各自的原生中心，以保持和原评估一致。敏感性分析另做两套共同时间点，都不用线性插值，也不向该 W 的中心范围外推：")
+    a("Primary estimates use the native centers of each W. Two sensitivity analyses evaluate common times without linear interpolation or extrapolation beyond a window’s center range:")
     a("")
-    a("- 交集中心：分析 A 下所有 W 的中心集合之交。估计和真值都取这些确切中心。")
-    a("- 段中心：10 个段中心里、落在每一个 W 的中心范围之内的那些点。延迟取最近窗口中心的估计；等距时取更小的中心。真值取该段中心所属段的分段延迟。")
+    a("- Intersection grid: exact centers shared by all W in analysis A. Estimates and truth are evaluated at those centers.")
+    a("- Segment grid: the subset of the ten segment centers within the range covered by every W. The nearest estimated center supplies the delay, with ties resolved to the earlier center. The generating segment supplies the truth.")
     a("")
     a(context["grid_narrative"])
     a("")
-    a("## 9. 方法排序")
+    a("## 9. Method rankings")
     a("")
-    a("DTW、CTW、FFT 用原 `SlidingWindowPair` 配置，每个 seed、噪声和 W 只算一次，搜索约束没有改成 quarter 或 half。图 2c 的画法是：NeuroTD 用质量分选窗，三个基线用各自跨 W 的最小 RMSE。另一套对照把四个方法放在 NeuroTD 所选的同一个 W 上。两种口径都列在 `tables/ranking_by_seed.csv`。")
+    a("DTW, CTW and FFT use the original SlidingWindowPair configuration and run once per seed, noise level and W. Their constraints are independent of the NeuroTD radius ablation. Figure 2c compares E-selected NeuroTD against each baseline’s minimum RMSE across W. A second comparison evaluates every method at NeuroTD’s selected W. Both appear in tables/ranking_by_seed.csv.")
     a("")
     a(context["rank_narrative"])
     a("")
-    a("## 10. 对论文公式的含义")
+    a("## 10. Implications for the search-radius formula")
     a("")
     a(context["formula_narrative"])
     a("")
-    a("## 11. 文件")
+    a("## 11. Outputs")
     a("")
-    a("- `tables/condition_results.csv`：全部 seed、网格、分析、范围、噪声和 W 的逐次结果。")
-    a("- `checkpoints/*_windows.npz`：逐窗口中心、起点、两种估计、中心真值、局部最小 MSE 和边界标记。`range_code` 0 是 quarter，1 是 half；`analysis` 0 是 A，1 是 B。")
-    a("- `tables/fixed_window_paired_ci.csv`、`selection_by_seed.csv`、`cross_window_by_seed.csv`、`ranking_by_seed.csv`。")
-    a("- `figures/`：RMSE 热图、配对差、选窗曲线、选窗分布、越界率、触边率和 seed 0 的预指定轨迹。")
+    a("- tables/condition_results.csv: one row per seed, grid, analysis, radius, noise level and W.")
+    a("- checkpoints/*_windows.npz: window centers and starts, estimates for both radii, center truth, local minimum MSE and boundary flags. range_code 0/1 denotes quarter/half. analysis 0/1 denotes A/B.")
+    a("- tables/fixed_window_paired_ci.csv, selection_by_seed.csv, cross_window_by_seed.csv and ranking_by_seed.csv.")
+    a("- figures/: RMSE heat maps, paired differences, window-selection curves and distributions, out-of-range and boundary-hit rates, and prespecified seed 0 trajectories.")
     a("")
-    a("轨迹使用 seed 0，噪声取该网格的 0、第二档和 0.2，窗口取最小、中间和最大。这是事先规定的代表点，不是按结论挑出来的。")
+    a("The trajectory examples use seed 0. Each grid contributes zero noise, its second noise level and SD 0.2, at its smallest, middle and largest windows. This selection was prespecified.")
     a("")
-    (out_dir / "REPORT_CN.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (out_dir / "REPORT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _rows_where(fixed, grid, analysis):
@@ -891,35 +873,35 @@ def build_narratives(fixed, choices, sel, cross, rank, grid_sum, coverage) -> di
     def sentence_fixed(grid, analysis):
         g = _rows_where(fixed, grid, analysis)
         sig = g[g.ci_excludes_0]
-        parts = [f"分析 {analysis}、网格 `{grid}`：{len(g)} 个噪声×W 单元中，{len(sig)} 个的 95% 区间不含 0。"]
+        parts = [f"Analysis {analysis}, grid {grid}: 95% intervals excluded zero in {len(sig)} of {len(g)} noise-by-window cells."]
         if len(sig):
             worse = sig[sig.mean_diff_half_minus_quarter_ms > 0]
             better = sig[sig.mean_diff_half_minus_quarter_ms < 0]
             parts.append(
-                f"其中 half 显著更高（更差）的有 {len(worse)} 个，half 显著更低（更好）的有 {len(better)} 个。"
+                f"RMSE was higher with the half radius in {len(worse)} such cells and lower in {len(better)}."
             )
             show = sig.sort_values("mean_diff_half_minus_quarter_ms", key=lambda s: s.abs(), ascending=False).head(8)
             bits = []
             for r in show.itertuples():
                 bits.append(
-                    f"噪声 {r.noise_std:.3g}、W={r.window_size}：quarter {r.mean_rmse_quarter_ms:.3f} ms，"
-                    f"half {r.mean_rmse_half_ms:.3f} ms，Δ {r.mean_diff_half_minus_quarter_ms:.3f} "
-                    f"[{r.ci95_low_ms:.3f}, {r.ci95_high_ms:.3f}]，"
-                    f"真值越界比例 quarter {r.frac_gt_out_quarter:.3f}、half {r.frac_gt_out_half:.3f}，"
-                    f"下界 {r.lower_bound_quarter_ms:.3f} / {r.lower_bound_half_ms:.3f} ms"
+                    f"noise {r.noise_std:.3g}, W={r.window_size}: quarter {r.mean_rmse_quarter_ms:.3f} ms, "
+                    f"half {r.mean_rmse_half_ms:.3f} ms, Δ {r.mean_diff_half_minus_quarter_ms:.3f} "
+                    f"[{r.ci95_low_ms:.3f}, {r.ci95_high_ms:.3f}], "
+                    f"fraction of out-of-range true delays (quarter/half) {r.frac_gt_out_quarter:.3f}/{r.frac_gt_out_half:.3f}, "
+                    f"lower bounds {r.lower_bound_quarter_ms:.3f}/{r.lower_bound_half_ms:.3f} ms"
                 )
-            parts.append("绝对差最大的单元：" + "；".join(bits) + "。")
+            parts.append("Largest absolute differences: " + "; ".join(bits) + ".")
         unreachable = g[(g.frac_gt_out_quarter > 0) | (g.frac_gt_out_half > 0)]
         reachable = g[(g.frac_gt_out_quarter == 0) & (g.frac_gt_out_half == 0)]
         reach_sig = reachable[reachable.ci_excludes_0]
         parts.append(
-            f"两种范围的真值越界比例都为 0 的单元有 {len(reachable)} 个，其中区间不含 0 的有 {len(reach_sig)} 个。"
-            "这些差异不能用“真值超出候选集合”解释。"
+            f"Both radii included all true delays in {len(reachable)} cells. Intervals excluded zero in {len(reach_sig)} of these. "
+            "Excluding true delays cannot explain differences in those cells."
         )
         if len(unreachable):
             parts.append(
-                f"至少一个范围存在真值越界的单元有 {len(unreachable)} 个。"
-                "这些单元里，实际 RMSE 仍应和下界分开看：下界只计入不可达部分。"
+                f"At least one radius excluded some true delays in {len(unreachable)} cells. "
+                "The lower bound describes the unavoidable component of the measured error in these cells."
             )
         return " ".join(parts)
 
@@ -934,20 +916,20 @@ def build_narratives(fixed, choices, sel, cross, rank, grid_sum, coverage) -> di
         for r in q.sort_values("noise_std").itertuples():
             hh = h[h.noise_index == r.noise_index].iloc[0]
             bits.append(
-                f"{r.noise_std:.3g}: quarter 众数 W={r.modal_selected_W}（{r.frac_modal_selected_W:.2f}），"
-                f"half 众数 W={hh.modal_selected_W}（{hh.frac_modal_selected_W:.2f}）"
+                f"{r.noise_std:.3g}: modal quarter W={r.modal_selected_W} ({r.frac_modal_selected_W:.2f}), "
+                f"modal half W={hh.modal_selected_W} ({hh.frac_modal_selected_W:.2f})"
             )
         n_diff_ci = int(paired.quality_ci_excludes_0.sum()) if len(paired) else 0
         mean_same = float(paired.frac_same_selected_W.mean()) if len(paired) else float("nan")
         sel_parts.append(
-            f"`{grid}` 分析 {analysis}：各噪声下质量分选窗的 seed 众数为 "
-            + "；".join(bits)
-            + f"。两种范围选出同一 W 的 seed 比例，对噪声取平均是 {mean_same:.3f}。"
-            f"选窗后 RMSE 的配对区间不含 0 的噪声档有 {n_diff_ci} 个。"
-            f"质量分所选 W 与 oracle W 相同的 seed 比例，quarter 平均 {q.frac_quality_equals_oracle_W.mean():.3f}，"
-            f"half 平均 {h.frac_quality_equals_oracle_W.mean():.3f}。"
-            f"旁路公式 q 与 E 选出不同 W 的比例，quarter 平均 {q.frac_paper_q_differs_from_E.mean():.3f}，"
-            f"half 平均 {h.frac_paper_q_differs_from_E.mean():.3f}。q 没有用于任何主结果。"
+            f"Grid {grid}, analysis {analysis}. Modal E-selected W across seeds by noise SD: "
+            + ", ".join(bits)
+            + f". The two radii selected the same W in a mean fraction {mean_same:.3f} of seeds across noise levels. "
+            f"Paired post-selection RMSE intervals excluded zero at {n_diff_ci} noise levels. "
+            f"E selection agreed with the oracle in a mean fraction {q.frac_quality_equals_oracle_W.mean():.3f} (quarter) "
+            f"and {h.frac_quality_equals_oracle_W.mean():.3f} (half). "
+            f"The auxiliary manuscript q and E selected different W in a mean fraction {q.frac_paper_q_differs_from_E.mean():.3f} (quarter) "
+            f"and {h.frac_paper_q_differs_from_E.mean():.3f} (half). Primary results use E."
         )
     # Cross detail when W differs, analysis A current, averaged already in sel paired rows.
     cross_bits = []
@@ -955,11 +937,11 @@ def build_narratives(fixed, choices, sel, cross, rank, grid_sum, coverage) -> di
     if len(sub):
         for (grid, noise), g in sub.groupby(["grid", "noise_std"]):
             cross_bits.append(
-                f"`{grid}` 噪声 {float(noise):.3g} 有 {len(g)} 个 seed 选窗不同："
-                f"在 quarter 的 W 上，quarter RMSE 均值 {g.rmse_quarter_at_Wq_ms.mean():.3f} ms，"
-                f"half {g.rmse_half_at_Wq_ms.mean():.3f} ms；"
-                f"在 half 的 W 上，quarter {g.rmse_quarter_at_Wh_ms.mean():.3f} ms，"
-                f"half {g.rmse_half_at_Wh_ms.mean():.3f} ms。"
+                f"Grid {grid}, noise SD {float(noise):.3g}: selected windows differed for {len(g)} seeds. "
+                f"At the quarter-selected window, mean RMSE was {g.rmse_quarter_at_Wq_ms.mean():.3f} ms (quarter) "
+                f"and {g.rmse_half_at_Wq_ms.mean():.3f} ms (half). "
+                f"At the half-selected window it was {g.rmse_quarter_at_Wh_ms.mean():.3f} ms (quarter) "
+                f"and {g.rmse_half_at_Wh_ms.mean():.3f} ms (half)."
             )
     selection_narrative = "\n\n".join(sel_parts + cross_bits)
 
@@ -977,60 +959,60 @@ def build_narratives(fixed, choices, sel, cross, rank, grid_sum, coverage) -> di
         if lo.frac_gt_out_quarter == 0 and lo.frac_gt_out_half == 0 and hi.mean_frac_edge_half < 0.02 and hi.mean_frac_edge_quarter < 0.02 and hi.mean_frac_half_outside_quarter < 0.02:
             continue
         bound_parts.append(
-            f"`{grid}` W={int(window)}：窗口级真值越界比例 quarter {lo.frac_gt_out_quarter:.3f}、half {lo.frac_gt_out_half:.3f}，"
-            f"下界 {lo.lower_bound_quarter_ms:.3f} / {lo.lower_bound_half_ms:.3f} ms。"
-            f"噪声 {lo.noise_std:.3g} 时实际 RMSE {lo.mean_rmse_quarter_ms:.3f} / {lo.mean_rmse_half_ms:.3f} ms，"
-            f"触边比例 {lo.mean_frac_edge_quarter:.3f} / {lo.mean_frac_edge_half:.3f}，"
-            f"half 估计落在 quarter 半径外的比例 {lo.mean_frac_half_outside_quarter:.3f}。"
-            f"噪声 {hi.noise_std:.3g} 时实际 RMSE {hi.mean_rmse_quarter_ms:.3f} / {hi.mean_rmse_half_ms:.3f} ms，"
-            f"触边 {hi.mean_frac_edge_quarter:.3f} / {hi.mean_frac_edge_half:.3f}，"
-            f"half 落在 quarter 外 {hi.mean_frac_half_outside_quarter:.3f}，"
-            f"half 负边界比例 {hi.mean_frac_neg_edge_half:.3f}。"
+            f"Grid {grid}, W={int(window)}. Fraction of windows with unreachable truth (quarter/half): {lo.frac_gt_out_quarter:.3f}/{lo.frac_gt_out_half:.3f}. "
+            f"RMSE lower bounds: {lo.lower_bound_quarter_ms:.3f}/{lo.lower_bound_half_ms:.3f} ms. "
+            f"At noise SD {lo.noise_std:.3g}, measured RMSE was {lo.mean_rmse_quarter_ms:.3f}/{lo.mean_rmse_half_ms:.3f} ms, "
+            f"boundary-hit fractions {lo.mean_frac_edge_quarter:.3f}/{lo.mean_frac_edge_half:.3f}, "
+            f"and the fraction of half-radius estimates outside the quarter radius was {lo.mean_frac_half_outside_quarter:.3f}. "
+            f"At noise SD {hi.noise_std:.3g}, measured RMSE was {hi.mean_rmse_quarter_ms:.3f}/{hi.mean_rmse_half_ms:.3f} ms, "
+            f"boundary-hit fractions {hi.mean_frac_edge_quarter:.3f}/{hi.mean_frac_edge_half:.3f}, "
+            f"half-radius estimates outside the quarter radius {hi.mean_frac_half_outside_quarter:.3f}, "
+            f"and the fraction at the negative half-radius boundary was {hi.mean_frac_neg_edge_half:.3f}."
         )
-    bound_narrative = "\n\n".join(bound_parts) if bound_parts else "分析 A 中没有记录到真值越界或明显触边。"
+    bound_narrative = "\n\n".join(bound_parts) if bound_parts else "Analysis A showed no out-of-range truths or notable boundary hits."
 
     boundary_parts = []
     ga = fixed[fixed.analysis == "A"]
     for (grid, window), gg in ga.groupby(["grid", "window_size"]):
         r = gg.iloc[0]
         boundary_parts.append(
-            f"`{grid}` W={int(window)}：混合窗比例 quarter {r.mean_frac_mixed_quarter:.3f}，half {r.mean_frac_mixed_half:.3f}；"
-            f"窗口内样本延迟不同于中心真值的平均比例 {r.mean_frac_samples_not_gt_quarter:.3f} / {r.mean_frac_samples_not_gt_half:.3f}。"
-            f"噪声平均后，内部 RMSE {gg.mean_rmse_interior_quarter_ms.mean():.3f} / {gg.mean_rmse_interior_half_ms.mean():.3f} ms，"
-            f"混合窗 RMSE {gg.mean_rmse_mixed_quarter_ms.mean():.3f} / {gg.mean_rmse_mixed_half_ms.mean():.3f} ms。"
+            f"Grid {grid}, W={int(window)}. Mixed-window fractions (quarter/half): {r.mean_frac_mixed_quarter:.3f}/{r.mean_frac_mixed_half:.3f}. "
+            f"Mean fractions of samples whose delay differed from center truth: {r.mean_frac_samples_not_gt_quarter:.3f}/{r.mean_frac_samples_not_gt_half:.3f}. "
+            f"Averaged across noise levels, interior-window RMSE was {gg.mean_rmse_interior_quarter_ms.mean():.3f}/{gg.mean_rmse_interior_half_ms.mean():.3f} ms "
+            f"and mixed-window RMSE was {gg.mean_rmse_mixed_quarter_ms.mean():.3f}/{gg.mean_rmse_mixed_half_ms.mean():.3f} ms."
         )
-    boundary_narrative = "分析 A 的窗口位置与搜索范围无关，因此两种范围的混合窗比例相同。\n\n" + "\n\n".join(boundary_parts)
+    boundary_narrative = "Window positions in analysis A are independent of the search radius. The mixed-window fractions therefore agree.\n\n" + "\n\n".join(boundary_parts)
 
     grid_parts = []
     for r in coverage.itertuples():
         grid_parts.append(
-            f"`{r.grid}` 分析 A 的全体 W 中心交集有 {r.n_intersection_centers} 个点，"
-            f"全体 W 都能覆盖的段中心有 {r.n_segment_centers_covered_by_all_W} 个。"
-            f"各 W 的 A 窗口数 {r.per_window_n_A}；B quarter 窗口数 {r.per_window_n_B_quarter}；"
-            f"A 与 B quarter 的共同中心数 {r.per_window_n_shared_A_vs_B_quarter}。"
+            f"Grid {r.grid}, analysis A. All W share {r.n_intersection_centers} exact centers, "
+            f"and {r.n_segment_centers_covered_by_all_W} segment centers fall within the range of every W. "
+            f"Window counts by W: A {r.per_window_n_A}, B quarter {r.per_window_n_B_quarter}. "
+            f"Centers shared by A and B quarter: {r.per_window_n_shared_A_vs_B_quarter}."
         )
     if len(grid_sum):
         sig = grid_sum[grid_sum.ci_excludes_0]
         grid_parts.append(
-            f"共同网格上的配对 RMSE 区间不含 0 的单元有 {len(sig)} / {len(grid_sum)}。"
-            "这是敏感性结果。原生中心上的固定窗口表仍是主分析。"
+            f"On the common grids, paired RMSE intervals excluded zero in {len(sig)} of {len(grid_sum)} cells. "
+            "These are sensitivity checks. The fixed-window table uses native centers for the primary analysis."
         )
         if len(sig):
             top = sig.assign(ad=lambda d: d.mean_diff_ms.abs()).sort_values("ad", ascending=False).head(6)
             bits = [
-                f"{r.grid} {r.grid_kind} 噪声索引 {r.noise_index} W={r.window_size} Δ {r.mean_diff_ms:.3f} ms"
+                f"{r.grid} {r.grid_kind}, noise index {r.noise_index}, W={r.window_size}, Δ {r.mean_diff_ms:.3f} ms"
                 for r in top.itertuples()
             ]
-            grid_parts.append("绝对差较大的共同网格单元：" + "；".join(bits) + "。")
+            grid_parts.append("Largest absolute differences on shared grids: " + "; ".join(bits) + ".")
     grid_narrative = "\n\n".join(grid_parts)
 
     rank_parts = []
     for (grid, analysis, range_name), g in rank.groupby(["grid", "analysis", "search_range"]):
         rank_parts.append(
-            f"`{grid}` 分析 {analysis} {range_name}：图 2c 口径下 NeuroTD 质量分 RMSE 小于三个基线 oracle 最小值的 seed×噪声比例是 "
-            f"{g.neurotd_beats_all_oracle_baselines.mean():.3f}；同一所选 W 上小于三个基线的比例是 "
-            f"{g.neurotd_beats_all_same_window.mean():.3f}。图 2c 口径的获胜者计数：{g.paper_style_winner.value_counts().to_dict()}。"
-            f"同一窗口口径：{g.same_window_winner.value_counts().to_dict()}。"
+            f"Grid {grid}, analysis {analysis}, {range_name}: the fraction of seed-by-noise pairs in which E-selected NeuroTD had lower RMSE than all three oracle baselines (Figure 2c convention) was "
+            f"{g.neurotd_beats_all_oracle_baselines.mean():.3f}. At the same selected W, the fraction was "
+            f"{g.neurotd_beats_all_same_window.mean():.3f}. Winner counts under the Figure 2c convention: {g.paper_style_winner.value_counts().to_dict()}. "
+            f"Same-window winner counts: {g.same_window_winner.value_counts().to_dict()}."
         )
     # Does quarter change the paper-style winner relative to half?
     change_bits = []
@@ -1039,11 +1021,11 @@ def build_narratives(fixed, choices, sel, cross, rank, grid_sum, coverage) -> di
         h = g[g.search_range == "half"][["seed", "noise_index", "paper_style_winner", "same_window_winner", "neurotd_beats_all_oracle_baselines"]]
         m = q.merge(h, on=["seed", "noise_index"], suffixes=("_q", "_h"))
         change_bits.append(
-            f"`{grid}` 分析 {analysis}：图 2c 获胜者在 quarter 与 half 之间不同的比例是 "
-            f"{(m.paper_style_winner_q != m.paper_style_winner_h).mean():.3f}；"
-            f"同一窗口获胜者不同的比例是 {(m.same_window_winner_q != m.same_window_winner_h).mean():.3f}；"
-            f"“NeuroTD 优于全部 oracle 基线”这一判断发生改变的比例是 "
-            f"{(m.neurotd_beats_all_oracle_baselines_q != m.neurotd_beats_all_oracle_baselines_h).mean():.3f}。"
+            f"Grid {grid}, analysis {analysis}. The fraction with a different Figure 2c winner under the two radii was "
+            f"{(m.paper_style_winner_q != m.paper_style_winner_h).mean():.3f}. "
+            f"Same-window winners differed in a fraction {(m.same_window_winner_q != m.same_window_winner_h).mean():.3f}. "
+            f"The fraction in which the conclusion that NeuroTD beat all oracle baselines changed was "
+            f"{(m.neurotd_beats_all_oracle_baselines_q != m.neurotd_beats_all_oracle_baselines_h).mean():.3f}."
         )
     rank_narrative = "\n\n".join(rank_parts + change_bits)
 
@@ -1052,23 +1034,23 @@ def build_narratives(fixed, choices, sel, cross, rank, grid_sum, coverage) -> di
     small = cur[cur.window_size.isin([33, 65])]
     large = cur[cur.window_size == 1025]
     formula = (
-        "代码实现的是 |t|≤⌊W/2⌋。正文若改成 |t|≤⌊W/4⌋，在当前网格的主分析 A 上，影响集中在真值不可达的小窗和 half 会选到大幅度别名的大窗。"
-        f" W=33 与 W=65 上，30 个 seed 的平均 RMSE：quarter {small.mean_rmse_quarter_ms.mean():.3f} ms，half {small.mean_rmse_half_ms.mean():.3f} ms（这是把这些单元简单平均，不是新的推断单位）。"
-        f" W=1025 上 quarter 平均 RMSE {large.mean_rmse_quarter_ms.mean():.3f} ms，half {large.mean_rmse_half_ms.mean():.3f} ms。"
-        " 自动选窗会绕开一部分很差的固定窗，但它优化的是 E，不是真实延迟 RMSE；oracle 与质量分选窗不一致的比例已在第 5 节给出。"
-        " 因此把公式从 W/2 改成 W/4，并不等于整体提高或降低离散模拟误差，而是把误差从“小窗够不着真值”和“大窗够得着别名”这两类情形之间重新分配。"
-        " 历史注释网格的方向是否相同，要看该网格自己的表，不能和第 4 节的当前网格混成一个平均。"
+        "The implemented bound is |t| ≤ ⌊W/2⌋. On the current grid in analysis A, reducing it to ⌊W/4⌋ mainly affects short windows with unreachable true delays and long windows that admit large aliases."
+        f" For W=33 and 65, mean RMSE across the 30 seeds was {small.mean_rmse_quarter_ms.mean():.3f} ms (quarter) and {small.mean_rmse_half_ms.mean():.3f} ms (half). These are simple cell averages."
+        f" For W=1025, mean RMSE was {large.mean_rmse_quarter_ms.mean():.3f} ms (quarter) and {large.mean_rmse_half_ms.mean():.3f} ms (half)."
+        " Automatic selection avoids some poor fixed windows. It minimizes E, and the resulting frequency of agreement with the known-delay oracle is shown in Section 5."
+        " Reducing the radius trades errors from truncated true shifts at small W against errors from accessible aliases at large W."
+        " Results for the historical grid are tabulated separately because that grid uses different conditions."
     )
     # Lead from the strongest current-A facts.
     cur_sig = cur[cur.ci_excludes_0]
     n_half_worse = int((cur_sig.mean_diff_half_minus_quarter_ms > 0).sum())
     n_half_better = int((cur_sig.mean_diff_half_minus_quarter_ms < 0).sum())
     lead = (
-        f"主分析固定窗口网格、使用当前复现网格时，{len(cur)} 个噪声×W 单元里有 {len(cur_sig)} 个的配对 RMSE 区间不含 0："
-        f"half 更差 {n_half_worse} 个，half 更好 {n_half_better} 个。"
-        "差异不是均匀地落在所有窗上。小半径把 17 sample 的真值挡在 W=33（两种半径）和 W=65（仅 quarter）之外；大窗上 half 的额外候选包含远离真值的延迟，局部 MSE 可以更小而真实延迟 RMSE 更大。"
-        "质量分选窗使用的是代码中的 E 最小化，能够离开一部分固定小窗，但 E 与真实 RMSE 不是同一个目标。"
-        "图 2c 那种“NeuroTD 对三个基线的 oracle 最小值”的比较是否改写，取决于选窗后的 RMSE 有没有越过基线，见第 9 节的 seed 比例，而不是某一个示例轨迹。"
+        f"On the current grid, paired delay RMSE intervals excluded zero in {len(cur_sig)} of {len(cur)} primary fixed-window cells. "
+        f"RMSE with the half radius was higher in {n_half_worse} and lower in {n_half_better} of these cells. "
+        "At W=33 both radii exclude a true delay of 17 samples. At W=65 only the quarter radius excludes it. For large windows the half radius includes additional distant matches with lower local MSE and potentially larger true delay RMSE. "
+        "Minimum-E selection can move away from some small fixed windows. E measures waveform fit and delay RMSE measures delay accuracy. "
+        "Section 9 reports how often the E-selected estimate crosses a baseline’s oracle error and changes the Figure 2c ranking across seeds."
     )
     return {
         "lead": lead,
@@ -1084,7 +1066,6 @@ def build_narratives(fixed, choices, sel, cross, rank, grid_sum, coverage) -> di
 
 def analyze(out_dir: Path | None = None):
     out_dir = Path(out_dir) if out_dir is not None else Path(__file__).resolve().parent
-    setup_font()
     fig_dir = out_dir / "figures"
     tab_dir = out_dir / "tables"
     fig_dir.mkdir(parents=True, exist_ok=True)

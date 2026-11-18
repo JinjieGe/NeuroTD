@@ -13,7 +13,7 @@ assert {str(p.relative_to(PROJECT)):sha(p) for p in sorted((PROJECT/'src').rglob
 assert all(sha(ROOT/k)==v for k,v in conf['harness_hashes'].items())
 audit=json.loads((OUT/'independent_review.json').read_text())
 assert audit['passed'] and audit['p_values_recomputed']==25200
-required=['analysis_zh.md','response_zh.md','response_en.md','methods_en.md',
+required=['analysis.md','response_en.md','methods_en.md',
     '01_error_rates_and_power.png','02_null_variability_by_hop.png','03_example_curves.png','04_delay_accuracy.png']
 assert all((OUT/n).is_file() and (OUT/n).stat().st_size>0 for n in required)
 old=json.loads((ROOT/'review_archive/automatic_report/sha256.json').read_text())
@@ -27,7 +27,7 @@ review={'status':'complete','reviewed_epoch':time.time(),'scientific_design_unch
         '02_null_variability_by_hop.png':'Reviewed original image: seven conditions, native grids explicitly distinguished, panel scales differ.',
         '03_example_curves.png':'Reviewed final image: no misleading floating-point offset on constant curve; sparse centers marked; same replicate 0.',
         '04_delay_accuracy.png':'Reviewed final image: readable labels, shared RMSE scale, values agree with summaries.'},
-    'drafts_reviewed':['analysis_zh.md','response_zh.md','response_en.md','methods_en.md'],
+    'drafts_reviewed':['analysis.md','response_en.md','methods_en.md'],
     'limitations_explicit':['fixed W=513','known waveform/lag/noise null','single calibration set',
         '9.5% conditional FPR','low high-noise power','low power for some unstandardized max tests',
         'smoothness does not guarantee accuracy','no real-data or selected-window calibration'],
