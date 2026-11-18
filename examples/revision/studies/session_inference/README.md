@@ -1,9 +1,3 @@
-# Conditional three-session inference and independent validation
+# Regional comparisons across three fixed sessions
 
-Comments: 2.4.2,2.8.4,3.1.
-
-Research supplement; see the central evidence map for interpretation limits.
-
-Run through `python examples/revision/run.py`, not directly in this folder. The launcher stages code into a separate workspace; generated results never overwrite archived evidence.
-
-Source bundle: `NeuroTD_242_resolution_20261108`. Original and packaged hashes are recorded in `../../source_manifest.csv`. Only path/configuration adaptations were made during integration. Full historical runs were not repeated merely to organize these files.
+`code/calibrated_welch.py` computes the six simultaneous comparisons in S6, including the three hippocampal contrasts, from the trial summaries. With `--repeat-calibration` it regenerates the multiplier, independent validation and out-of-library challenges. The November 8 scripts and plans document the earlier session jackknife. See the [run instructions](../../../../docs/revision-running.md).

@@ -82,8 +82,14 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     sub=parser.add_subparsers(dest='action',required=True)
     sub.add_parser('list')
-    for action in ('init','run','figures'):
-        p=sub.add_parser(action)
+    descriptions = {
+        'init': 'Prepare a run workspace.',
+        'run': 'Run an individual study script.',
+        'figures': 'Generate figures from archived outcomes.',
+        'evidence': 'Rebuild Tables S1–S9, regional comparisons and matched-control results.',
+    }
+    for action, help_text in descriptions.items():
+        p=sub.add_parser(action, help=help_text)
         p.add_argument('--workspace',type=Path,required=True)
         if action=='run':
             p.add_argument('--study',choices=sorted(CATALOG),required=True)
@@ -109,6 +115,21 @@ def main():
         raise SystemExit(execute(workspace,args.study,script,[]))
     if (workspace/'ARCHIVED_FIGURES_ONLY.txt').exists():
         parser.error('Use a separate fresh workspace for experiments, not archived-figure outputs.')
+    if args.action == 'evidence':
+        table_dir = workspace / 'supplement_tables'
+        steps = [
+            ('score_uncertainty', 'supplement_tables.py', ['--output-dir', str(table_dir)]),
+            ('session_inference', 'code/calibrated_welch.py', ['--table-dir', str(table_dir)]),
+            ('dynamic_fixed', 'summarize_matched_controls.py', []),
+        ]
+        for study, script, options in steps:
+            result = execute(workspace, study, script, options)
+            if result:
+                raise SystemExit(result)
+        print(f'Supplementary tables S1–S9: {table_dir}')
+        print(f"Regional comparisons: {workspace / 'session_inference/outputs'}")
+        print(f"Matched controls: {workspace / 'dynamic_fixed/outputs/matched_control_summary.json'}")
+        return
     arguments=args.arguments[1:] if args.arguments[:1]==['--'] else args.arguments
     raise SystemExit(execute(workspace,args.study,args.script,arguments))
 

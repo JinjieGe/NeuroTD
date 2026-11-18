@@ -39,6 +39,7 @@
 !examples/revision/**/*.txt
 !examples/revision/**/*.csv
 !examples/revision/inputs/**/*.npz
+!examples/revision/inputs/dynamic_fixed/matched_control_records.csv.gz
 !examples/revision/requirements.txt
 # Never track generated experiment outputs or private acquisition files.
 revision_runs/

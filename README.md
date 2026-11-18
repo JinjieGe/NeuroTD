@@ -1,41 +1,26 @@
 # NeuroTD infers time varying delays in neural activities by adaptive sliding window alignment
 
-Studying the temporal dynamics of neural activities is essential for understanding how neurons function. These dynamics often involve temporal delays between neurons that vary over time, revealing both their functions and how they interact within circuits. Recent techniques such as Neuropixels, depth electrodes, and Patch-seq enable time-series recordings of neural activity at various scales, ranging from single neurons to large populations. However, inferring such time-varying delays remains challenging due to noise, high sampling rates, and complex temporal patterns.
+NeuroTD estimates the local time shift between two neural recordings by sliding a window along the signals and minimizing the alignment error in each window. Simulations compare the estimated shifts with known delays. The real-data examples examine within-region electrode pairs in human intracranial recordings and associations between mouse Patch-seq firing features and gene expression.
 
-To address these challenges, NeuroTD is introduced as a computational framework based on adaptive sliding-window alignment for inferring time-varying delays between time-series signals. NeuroTD integrates automatic window-size selection via an internal quality score to achieve robust and high-resolution delay estimates without manual tuning. The method is benchmarked extensively in simulation studies and applied to real-world electrophysiological datasets.
+<img src="./docs/assets/fig1.png" alt="Overlapping windows align two signals and estimate how their relative shift changes over time" width="700"/>
 
-Specifically, NeuroTD is evaluated on two real datasets:
-(i) intracranial multi-channel electrophysiological recordings from depth electrodes across medial temporal lobe regions in humans, where hippocampal signals exhibit consistently longer delays than other regions during working memory tasks; and
-(ii) Patch-seq recordings from mouse motor cortex, where intrinsic electrophysiological time-delay features of excitatory neurons are correlated with gene expression, highlighting pathways related to ion transport and neuronal excitability.
+## Reproduce the revision evidence
 
-<img src="./docs/assets/fig1.png" alt="" width="700"/>
-
-_Figure 1_: NeuroTD infers time-varying delays using adaptive sliding-window alignment. Two time-series with changing delays are analyzed by segmenting the signals into overlapping indows and estimating the optimal local shift in each window. The resulting sequence of window-wise estimates is combined to recover a continuous time-varying delay profile, capturing both positive and negative delays over time under noisy conditions.
-
-## Revision evidence and reproducible analyses
-
-The revision studies are organized by scientific question and reviewer comment.
-Start with the [revision code index](examples/revision/README.md),
-[comment-to-code evidence map](docs/revision-evidence-map.md), and
-[run instructions](docs/revision-running.md). These supplements cover score and
-window-selection audits, overlapping-window inference, dataset reporting,
-noise sensitivity, search-range checks, and response figures. Comment 2.5 is
-excluded from this integration.
+After installing the package, run the following from the repository root:
 
 ```bash
-python examples/revision/run.py list
+python -m pip install -r examples/revision/requirements.txt
+python examples/revision/run.py evidence --workspace revision_runs/current
 ```
 
-The original estimator and E are unchanged. Historical output tables are labeled
-separately from new runs. See [limitations and missing materials](docs/revision-limitations.md)
-and [integration checks](docs/revision-validation.md) before interpreting results.
+This writes **Tables S1–S9** to `revision_runs/current/supplement_tables/`, recomputes the six regional comparisons from trial summaries, and applies the 72-test Holm correction within each panel of matched controls. The table inputs include archived simulation outcomes. To run the underlying experiments, including the independent Welch calibration, see the [run instructions](docs/revision-running.md). The [comment-to-code map](docs/revision-evidence-map.md) covers the other analyses and their scope. This branch excludes Comment 2.5.
 
 ## Installation Instructions (Ubuntu 24.04 LTS, WSL 2.6 in Windows 10/11 Pro)
 
 First, clone and navigate to the repository.
 
 ```bash
-git clone https://github.com/daifengwanglab/NeuroTD
+git clone --branch revision/organized-evidence-20261108 https://github.com/JinjieGe/NeuroTD.git
 cd NeuroTD
 ```
 

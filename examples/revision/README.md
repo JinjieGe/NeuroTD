@@ -8,8 +8,10 @@
 python -m pip install -e .
 python -m pip install -r examples/revision/requirements.txt
 python examples/revision/run.py list
-python examples/revision/run.py init --workspace revision_runs/my_run
+python examples/revision/run.py evidence --workspace revision_runs/my_run
 ```
+
+补充表 S1–S9 输出到 `revision_runs/my_run/supplement_tables/`。该命令还输出 2.4.2 的六项脑区比较和 2.4.3 的匹配对照结果。
 
 ## 目录职责
 
@@ -17,9 +19,9 @@ python examples/revision/run.py init --workspace revision_runs/my_run
 |---|---|
 | `run.py`, `revision_runtime.py` | 统一启动、路径配置、独立工作目录与运行记录 |
 | `studies/score_uncertainty/` | 2.2、2.3、2.4.1：E、已知延迟、独立重复、不确定性 |
-| `studies/dynamic_fixed/` | 2.4.3：固定窗口、步长、重叠重建 |
+| `studies/dynamic_fixed/` | 2.4.3：匹配干扰对照汇总，以及早期固定窗、步长和重叠重建实验 |
 | `studies/dynamic_selection/` | 2.4.3：将完整选窗过程纳入恒定延迟零分布 |
-| `studies/session_inference/` | 2.4.2：会话层条件性统计及额外校准 |
+| `studies/session_inference/` | 2.4.2：校准后的 Welch 型比较（S6）、独立验证（S7）和历史方法 |
 | `studies/dataset_reporting/` | 2.6：NWB 元数据、公开处理后 sweep 表计数 |
 | `studies/search_range/` | 2.8.1：W/4 与 W/2 搜索范围消融 |
 | `studies/snr_initial/`, `studies/snr_extension/` | 2.7.1：信号质量代理指标与加噪声敏感性 |

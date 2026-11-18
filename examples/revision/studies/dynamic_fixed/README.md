@@ -1,9 +1,3 @@
-# Fixed-window dynamics and overlap reconstruction
+# Delay dynamics and matched controls
 
-Comments: 2.4.3.
-
-Research supplement; see the central evidence map for interpretation limits.
-
-Run through `python examples/revision/run.py`, not directly in this folder. The launcher stages code into a separate workspace; generated results never overwrite archived evidence.
-
-Source bundle: `NeuroTD_dynamic_null_20261018`. Original and packaged hashes are recorded in `../../source_manifest.csv`. Only path/configuration adaptations were made during integration. Full historical runs were not repeated merely to organize these files.
+`summarize_matched_controls.py` applies the Holm correction to the saved record-level rank p-values and summarizes tracking errors for the November 15 interference controls. For each record, T measures the mean squared deviation of window delays from their mean (ms²) and S their maximum absolute deviation (ms). Each panel tests both endpoints for 36 records as a family of 72 hypotheses. Detection and tracking error are reported separately for the known varying delays. `simulate.py` runs the earlier fixed-window experiment. See the [run instructions](../../../../docs/revision-running.md).

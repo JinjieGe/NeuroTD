@@ -9,6 +9,20 @@ python -m pip install -r examples/revision/requirements.txt
 
 下文 `revision_runs/full` 可替换为实验室电脑的独立工作路径。统一入口会写运行命令、代码哈希、退出状态；实验原有随机种子、预先设定方案、检查点和自检保留。脚本搬移涉及路径，历史原始哈希和本轮哈希在 `source_manifest.csv` 中分别记录。
 
+## 用一条命令核对修订证据
+
+```bash
+python examples/revision/run.py evidence --workspace revision_runs/current
+```
+
+| 工作目录中的输出 | 输入和计算 |
+|---|---|
+| `supplement_tables/Table_S1.csv` 至 `Table_S9.csv` | S1、S2 来自各 66 个窗口与噪声组合。S3–S5 使用独立重复模拟。S6 根据试次汇总重算，S7 汇总独立校准验证。S8 取自加噪实验，S9 统计两脑区共同出现的受试者和会话。 |
+| `session_inference/outputs/calibrated_welch_six_comparisons.csv` | 600 行试次与脑区汇总，输出六项比较的差值、标准误、有效自由度、校正 p 值和同时置信区间。S6 列出全部六项比较，前三行为海马与各脑区的比较。 |
+| `dynamic_fixed/outputs/matched_control_summary.json` | 从匹配对照的原始秩检验 p 值重做 Holm 校正，统计各干扰条件下的整组误报率、记录级检出率与延迟 RMSE。 |
+
+该入口可离线运行。工作目录中的 `run_manifests/` 记录对应的命令与代码版本。下文另列已提供的原始模拟入口，以及独立重新拟合 2.4.2 校准系数的命令。
+
 ## 2.2、2.3、2.4.1：E、选窗和独立重复
 
 ```bash
@@ -21,7 +35,15 @@ python examples/revision/run.py run --workspace revision_runs/full --study score
 
 ## 2.4.3：先固定窗，再将选窗纳入零分布
 
-固定窗使用随包提供的干净合成信号：
+匹配干扰对照可独立复核：
+
+```bash
+python examples/revision/run.py run --workspace revision_runs/controls --study dynamic_fixed --script summarize_matched_controls.py
+```
+
+每种匹配干扰条件有 200 组恒定延迟对照。对每条记录，T 是延迟曲线相对于其均值的平均平方偏离（ms²），S 是最大绝对偏离（ms）。每组对 36 条记录的 T、S 同时作 Holm 校正（72 项），任一项误报即计为整组误报。时变对照同时报告记录级检出率和相对真实轨迹的 RMSE。默认入口读取打包的模拟记录，对每组 72 个原始秩检验 p 值重新作 Holm 校正，再与动态记录的轨迹误差汇总。持有 11 月 15 日的原始结果目录时，可追加 `-- --source-results /path/to/results --verify-endpoints` 核对原始表。原始秩检验使用已冻结的参考库，每个模板 2,999 次参考抽样。
+
+较早的固定窗模拟使用随包提供的干净合成信号：
 
 ```bash
 python examples/revision/run.py run --workspace revision_runs/full --study dynamic_fixed --script simulate.py -- prepare
@@ -39,19 +61,14 @@ python examples/revision/run.py run --workspace revision_runs/full --study dynam
 
 `checks.py`先生成/核对输入及逐点一致性，失败时不得跳过。原调度器含 macOS 的资源监测；其他平台应先检查资源检测回退及 worker 数，不要直接把实验室电脑的并行设置搬到低内存机器。完整流程的结果不能解释为真实数据动态曲线已经校准。
 
-## 2.4.2：最新会话层统计
-
-输入是随包保存的600行试次×原标签组汇总，不重新计算原始时延。
+## 2.4.2 校正后的脑区比较
 
 ```bash
-python examples/revision/run.py run --workspace revision_runs/stats --study session_inference --script code/run_analysis.py -- --pilot
-python examples/revision/run.py run --workspace revision_runs/stats --study session_inference --script code/run_analysis.py
-python examples/revision/run.py run --workspace revision_runs/stats --study session_inference --script code/verify_results.py
-python examples/revision/run.py run --workspace revision_runs/stats --study session_inference --script code/final_validation.py
-python examples/revision/run.py run --workspace revision_runs/stats --study session_inference --script code/sensitivity_and_figures.py
+python examples/revision/run.py run --workspace revision_runs/stats --study session_inference --script code/calibrated_welch.py
+python examples/revision/run.py run --workspace revision_runs/stats --study session_inference --script code/calibrated_welch.py -- --repeat-calibration
 ```
 
-先阅读该模块的 `PLAN.txt` 和 `FOLLOWUP_VALIDATION_PLAN.txt`。后者增加600000个汇总层模拟数据集，不是600000次原始信号重估。旧 `audit_v1–v3` 不是推荐的一键工作流；重跑它们需要原始NWB及旧检查点、历史源版本，见缺项清单。
+第一条用已冻结的标准误乘数 1.7519988157717314，从 1 名受试者、3 个固定会话、每会话 50 个试次的汇总重算六项比较。每个比较按 Welch 型方法估计自由度，六项统一用 Bonferroni 校正。第二条重新运行 200,000 组校准、600,000 组独立验证和 40,000 组模型外压力测试，结果写入 `session_inference/outputs/`。这三个计数的单位都是模拟数据集。较早的删除会话 jackknife 结果保留在 `run_analysis.py` 对应的历史流程中。
 
 ## 2.6：数据清点
 
