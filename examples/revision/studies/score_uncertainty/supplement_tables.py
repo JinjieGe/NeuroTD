@@ -194,6 +194,19 @@ def main():
                 parser.error(f"Existing table differs: {destination}. Choose a different output directory.")
         else:
             pending[destination] = content
+    genes = read_rows(resolve_path("evidence", "reviewer5/correlation_new_vs_existing.csv"))
+    if len(genes) != 200 or len({row["gene"] for row in genes}) != 200:
+        parser.error("Expected 200 distinct ranked gene identifiers")
+    buffer = StringIO(newline="")
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(["gene", "correlation"])
+    writer.writerows((row["gene"], row["corr_score"]) for row in genes)
+    destination = args.output_dir / "Supplementary_Data_S1_genes_top200.csv"
+    content = buffer.getvalue().encode("utf-8")
+    if destination.exists() and destination.read_bytes() != content:
+        parser.error(f"Existing gene table differs: {destination}. Choose a different output directory.")
+    if not destination.exists():
+        pending[destination] = content
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for destination, content in pending.items():
         with destination.open("xb") as output:

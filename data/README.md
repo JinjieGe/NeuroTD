@@ -22,20 +22,21 @@ unzip -n data/processed/gxp_total_log2_filtered_pc.zip -d data/processed
 
 The extracted CSV is deliberately not tracked. Source dataset: mouse motor cortex
 Patch-seq, Scala et al., linked by the original project to
-[DANDI 000008](https://dandiarchive.org/dandiset/000008).
+[DANDI 000008](https://dandiarchive.org/dandiset/000008). The source study provides expression inputs and cell metadata in the [mini-atlas repository](https://github.com/berenslab/mini-atlas).
 Full preprocessing additionally expects gene-count/length tables, a protein-coding
 gene list, and the source metadata described in `gene_expr_data_processing_XH.py`.
 These inputs are not all shipped with this repository.
 
 ## External iEEG recordings
 
-Source: Boran et al., [DANDI 000574](https://dandiarchive.org/dandiset/000574).
+Source: Boran et al., [DANDI 000574, version 0.250610.0938](https://dandiarchive.org/dandiset/000574/0.250610.0938).
 Download the required sessions separately and preserve their filenames and subject
 directory structure. The directory supplied via `NEUROTD_IEEG_DIR` or the launcher's
 `--ieeg-dir` must directly contain `sub-01/`, etc. The default is `data/raw/000574/`.
 The current script retains its original subject/session settings (subject 1,
 sessions 1, 2 and 3) and serial execution. Check required files before running.
-The loader's original session-ordering behavior is unchanged.
+Each session is resolved by its subject and session identifiers, for example
+`sub-01/sub-01_ses-01.nwb`. Missing or ambiguous filenames stop the analysis.
 
 ## Configuration
 

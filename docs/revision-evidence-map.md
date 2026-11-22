@@ -1,6 +1,6 @@
 # Reviewer comments and supporting code
 
-Updated November 18, 2026. Numbering follows the response document. Comment 2.6 corresponds to Reviewer 2's fifth major comment. The revision bundle excludes the reliability analyses for Comment 2.5. The [run guide](revision-running.md) shows how to reproduce Tables S1–S9 and the final statistical comparisons.
+Numbering follows the response document. Comment 2.6 corresponds to Reviewer 2's fifth major comment. The revision bundle excludes the reliability analyses for Comment 2.5. The [run guide](revision-running.md) shows how to verify Table 1, rebuild Tables S1–S9 and S11–S12, and export Supplementary Data S1.
 
 | Comment | Analysis or entry point | Evidence and scope |
 |---|---|---|
@@ -10,7 +10,7 @@ Updated November 18, 2026. Numbering follows the response document. Comment 2.6 
 | 2.3 | `score_uncertainty/`, `figures_23/build_figure.py`, `search_range/` | Candidate scores, selection frequencies, and search-range sensitivity. Assess accuracy separately against known delays. |
 | 2.4.1 | `score_uncertainty/` | Estimates residual covariance and the SD and Monte Carlo SE of E across independent signal pairs. The score retains its original window count. |
 | 2.4.2 | `session_inference/code/calibrated_welch.py` | Six regional comparisons from trial summaries, with calibrated SEs, estimated degrees of freedom, and Bonferroni correction (S6–S7). Inference is conditional on one participant's three sessions. Includes out-of-library stress tests. |
-| 2.4.3 | `dynamic_fixed/summarize_matched_controls.py`, `dynamic_fixed/`, `dynamic_selection/` | Applies Holm correction to 72 endpoints per simulated panel. Reports familywise false positives, record-level detection, and tracking error for matched interference controls. The proportion of artifacts in real recordings remains unknown. |
+| 2.4.3 | `dynamic_fixed/summarize_matched_controls.py`, `dynamic_fixed/`, `dynamic_selection/` | Applies Holm correction to 72 endpoints per simulated panel and to the 72 observed-record endpoints after combining the three fitted reference processes. Reports familywise false positives, record-level detection, and tracking error for matched interference controls. The proportion of artifacts in real recordings remains unknown. |
 | 2.6 | `examples/ieeg/`, `examples/patchseq/`, `dataset_reporting/`, `figures_26/` | Original workflows, session and trial counts, and processed sweeps. File inventories characterize their inputs. |
 | 2.7.1 | `snr_initial/`, `snr_extension/` | 253,440 noisy pairs from 36 templates, eight known shifts, eleven noise levels, two noise types, two channel configurations, and 20 repetitions. SNR refers to added noise. Templates came from one participant and three sessions. |
 | 2.7.2 | iEEG pairing code, `audit_v3/` | Electrode composition and local matching diagnostics. Matching between distinct real events requires separate physiological evidence. |

@@ -9,6 +9,14 @@ python -m pip install -r examples/revision/requirements.txt
 
 Choose a separate output workspace. The launcher records the command, code hashes, environment, and exit status. Historical source and packaged hashes are in `examples/revision/source_manifest.csv`.
 
+## Verify manuscript Table 1
+
+```bash
+python examples/revision/verify_table1.py .
+```
+
+Panel A regenerates both seeded signal pairs (noise SD 0.02, W=513), runs the four estimators, and checks RMSE on both native and shared evaluation centers. Panel B verifies performance counts using 66 archived noise-by-window settings in each simulation. The CTW values apply to the wrapper used in this benchmark.
+
 ## Rebuild the supplementary tables and final comparisons
 
 ```bash
@@ -19,9 +27,12 @@ python examples/revision/run.py evidence --workspace revision_runs/current
 |---|---|
 | `supplement_tables/Table_S1.csv` through `Table_S9.csv` | S1–S2 use 66 noise-by-window combinations per benchmark. S3–S5 summarize independent noise repetitions. S6 uses trial summaries, S7 uses independent calibration validation, S8 uses the added-noise experiments, and S9 counts participants and sessions contributing to each regional comparison. |
 | `session_inference/outputs/calibrated_welch_six_comparisons.csv` | Six regional contrasts from 600 trial-by-region summaries, with standard errors, effective degrees of freedom, adjusted p-values, and simultaneous intervals. S6 lists the three hippocampal comparisons first. |
+| `supplement_tables/Supplementary_Data_S1_genes_top200.csv` | Ranked signed correlation coefficients for the 200 genes used for the original enrichment analysis, using the archived audit of the processed expression and interval tables. |
+| `supplement_tables/Table_S11.csv` | Familywise false positives, one-sided 95% upper limits, dynamic detection and delay RMSE under seven matched interference settings. |
+| `supplement_tables/Table_S12.csv`, `dynamic_fixed/outputs/observed_departures_holm72.csv` | Computes each p-value from its stored exceedance count; for each of 36 records and two endpoints takes the largest across three reference processes and applies Holm correction. S12 gives the focal maximum departure. The second file gives all 72 adjusted tests. |
 | `dynamic_fixed/outputs/matched_control_summary.json` | Holm tests from archived rank p-values, panel false-positive rates, record-level detection rates, and delay RMSE by interference condition. |
 
-This entry works offline. Run manifests are in `run_manifests/`.
+The cross-trial reliability table (S10) is supplied with the manuscript. Its analysis is outside the distributed code. This entry works offline. Run manifests are in `run_manifests/`.
 
 ## 2.2, 2.3, and 2.4.1. Selection and independent repetitions
 

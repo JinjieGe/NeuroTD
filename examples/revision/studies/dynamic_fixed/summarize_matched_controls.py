@@ -139,6 +139,7 @@ def main():
     parser.add_argument("--verify-endpoints", action="store_true",
                         help="Compare the reconstructed outcomes against control_panel_inference.csv "
                              "and control_panel_tracking.csv in --source-results.")
+    parser.add_argument("--table-dir", type=Path, help="Export the matched-control statistics for Table S11.")
     args = parser.parse_args()
     if args.verify_endpoints and not args.source_results:
         parser.error("--verify-endpoints requires --source-results")
@@ -153,6 +154,10 @@ def main():
     destination = Path("outputs/matched_control_summary.json")
     destination.parent.mkdir(exist_ok=True)
     destination.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+
+    if args.table_dir:
+        args.table_dir.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(summary["scenarios"]).to_csv(args.table_dir / "Table_S11.csv", index=False)
 
     counts = [row["panels_with_any_false_rejection"] for row in summary["scenarios"]]
     low, high = min(counts), max(counts)

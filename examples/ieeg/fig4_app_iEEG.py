@@ -36,7 +36,7 @@ from neurotd.utils import InterpolatedVector, SlidingWindowPair, ensure_odd_wind
 # Install neurotd in the selected environment so joblib workers can import it.
 from neurotd.paths import data_path
 from neurotd.hiEEG_functions import detect_segments as detect_trials
-from neurotd.hiEEG_functions import load_iEEG_micro
+from neurotd.hiEEG_functions import load_iEEG_micro, session_nwb_path
 
 # StyleO
 sns.set_theme(context='talk', style='white', palette='Set2')
@@ -535,12 +535,8 @@ if future_work:
     format_types = ('old', 'new')
     assert format in format_types, f'Unknown format type "{format}", expected one of {format_types}'
 
-    # Formatting
-    file_string = f'sub-{subject:02d}/'
-    file_string = os.path.join(file_string, os.listdir(os.path.join(folder, file_string))[session - 1])
-
-    # Load file
-    nwbfile = pynwb.NWBHDF5IO(os.path.join(folder, file_string), mode='r').read()
+    file_path = session_nwb_path(folder, subject, session)
+    nwbfile = pynwb.NWBHDF5IO(str(file_path), mode='r').read()
     micro_data = nwbfile.acquisition['ecephys.lfp'].data[:]
     micro_time = nwbfile.acquisition['ecephys.lfp'].timestamps[:]
     micro_electrodes = nwbfile.acquisition['ecephys.lfp'].electrodes[:]

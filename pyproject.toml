@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "neurotd"
 version = "1.0.1"
-description = "NeuroTD: Adaptive sliding-window inference of time-varying neural delays"
+description = "Time-varying waveform delays in neural recordings with residual-guided window selection"
 readme = "README.md"
 requires-python = ">=3.12"
 

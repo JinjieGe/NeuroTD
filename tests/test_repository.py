@@ -56,6 +56,20 @@ class RepositoryTests(unittest.TestCase):
             with patch.dict(os.environ, {"NEUROTD_APP_EPHYS_GENE_DIR": str(base)}, clear=True):
                 self.assertEqual(paths.data_path(), base / "data")
 
+    def test_session_nwb_identity(self):
+        from neurotd.hiEEG_functions import session_nwb_path
+        with tempfile.TemporaryDirectory() as directory:
+            subject = Path(directory) / "sub-01"
+            subject.mkdir()
+            for name in ("sub-01_ses-03.nwb", "sub-01_ses-010.nwb", "sub-01_ses-01.nwb", ".DS_Store"):
+                (subject / name).touch()
+            self.assertEqual(session_nwb_path(directory, 1, 1).name, "sub-01_ses-01.nwb")
+            with self.assertRaises(FileNotFoundError):
+                session_nwb_path(directory, 1, 2)
+            (subject / "sub-01_ses-01_part-b.nwb").touch()
+            with self.assertRaises(ValueError):
+                session_nwb_path(directory, 1, 1)
+
     def test_metadata_fallback(self):
         from neurotd.app_ephys_gene import paths
         with patch.dict(os.environ, {"NEUROTD_DATA_DIR": str(ROOT / "data")}, clear=True):

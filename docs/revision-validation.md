@@ -1,5 +1,12 @@
 # Integration validation
 
+## 2026-11-22 manuscript release checks
+
+- All 25 offline tests passed. The Fig. 4 input test checks that session identifiers select the named NWB asset regardless of directory order.
+- Table 1A reproduced both fixed examples on native and shared centers. Table 1B reproduced the ranking counts from all 132 archived settings. The full noise-by-window grid was not rerun for this release.
+- At 96 dpi, the regenerated Fig. 1, Fig. 2 and complete Fig. 4 (with the original Fig. 4a artwork) were pixel-identical to the three revised manuscript figures. Fig. 4b used 100 bins and one median per region. The histograms contain no voltage samples.
+- The exported 200-gene Supplementary Data S1 file matched the manuscript source byte for byte. The observed-record analysis reproduced one adjusted p of 0.048 among 72 endpoints and 699 boundary hits among 18,288 windows. The p-values were recalculated from archived reference counts.
+
 ## 2026-11-18 revision evidence
 
 | Result | Verification |

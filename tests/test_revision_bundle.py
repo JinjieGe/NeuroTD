@@ -27,7 +27,7 @@ class RevisionBundleTests(unittest.TestCase):
             subprocess.run([sys.executable, str(BUNDLE / 'run.py'), 'evidence',
                             '--workspace', str(work)], check=True)
             tables = {}
-            for number, count in {1: 66, 2: 66, 3: 6, 4: 4, 5: 36, 6: 6, 7: 3, 8: 4, 9: 6}.items():
+            for number, count in {1: 66, 2: 66, 3: 6, 4: 4, 5: 36, 6: 6, 7: 3, 8: 4, 9: 6, 11: 7, 12: 1}.items():
                 with (output / f'Table_S{number}.csv').open(encoding='utf-8', newline='') as source:
                     header, *rows = csv.reader(source)
                 self.assertEqual(len(rows), count)
@@ -46,6 +46,17 @@ class RevisionBundleTests(unittest.TestCase):
                                             '[0.682, 0.874]', '<0.001'])
             self.assertIn(['12.500', '−20', '8.669', '15.661'], tables[8])
             self.assertIn(['Hippocampus–Middle Temporal Gyrus', '1 / 3', '9 / 37'], tables[9])
+
+            self.assertEqual(tables[12][0][:2], ['ses-03_t27_Amyg_p000', 'maxdev'])
+            self.assertAlmostEqual(float(tables[12][0][-1]), 0.048)
+            with (work / 'dynamic_fixed/outputs/observed_departures_holm72.csv').open(newline='') as source:
+                observed = list(csv.DictReader(source))
+            self.assertEqual(len(observed), 72)
+            self.assertEqual(sum(float(row['holm_72']) <= .05 for row in observed), 1)
+            with (output / 'Supplementary_Data_S1_genes_top200.csv').open(newline='') as source:
+                genes = list(csv.DictReader(source))
+            self.assertEqual(len(genes), 200)
+            self.assertEqual(genes[0], {'gene': 'Calb1', 'correlation': '0.4433160132262635'})
 
             summary = json.loads((work / 'dynamic_fixed/outputs/matched_control_summary.json').read_text())
             self.assertEqual(summary['holm_family_size'], 72)

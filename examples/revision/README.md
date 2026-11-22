@@ -9,7 +9,7 @@ python examples/revision/run.py list
 python examples/revision/run.py evidence --workspace revision_runs/my_run
 ```
 
-The last command writes S1–S9 to `revision_runs/my_run/supplement_tables/`, recomputes six regional comparisons, and summarizes matched interference controls.
+The evidence command writes S1–S9, S11–S12 and Supplementary Data S1 to `revision_runs/my_run/supplement_tables/`. It recomputes the six regional comparisons and the matched-control and observed-record tests. Use `python examples/revision/verify_table1.py .` for the main benchmark table. Manuscript figure commands are in the [project README](../../README.md).
 
 | Directory or file | Contents |
 |---|---|

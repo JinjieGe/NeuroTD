@@ -9,7 +9,7 @@ The revision bundle covers the analyses listed in the [comment-to-code map](revi
 1. **Window selection (2.3).** An early signal sweep reported selections at 65, 129, 257, 513, and 1025 samples. Its full scripts and configuration would be needed to reproduce that particular scan (historical folders `window_bias_rebuttal` and `window_score_methods`). The included 1,200 repetitions and search-range comparison cover the specified archived designs.
 2. **Dataset inventory (2.6).** The historical `reviewer5_closure.zip` provided tables and figures. The repository includes a new metadata inventory utility alongside the existing iEEG and Patch-seq entry points.
 3. **Earlier statistical audits (2.4).** The `audit_v1` through `audit_v3` scripts refer to historical source hashes, NWB assets, and window checkpoints. Reproduction requires matching versions of those inputs. The final regional comparisons use `session_inference/code/calibrated_welch.py`.
-4. **Figure 4b and expression data.** Reconstructing the historical heatmap requires the original channel, trial, and aggregation choices. Reconciling the gene counts requires the original expression feature list.
+4. **Figure 4b and expression data.** The revised Figure 4 shows regional delay distributions and simultaneous intervals. Reconstructing the earlier heatmap would require the original channel, trial and aggregation choices. Reconciling the gene counts requires the original expression feature list.
 
 ## Statistical and biological interpretation
 

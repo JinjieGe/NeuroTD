@@ -14,12 +14,29 @@ the full external dependency.
 
 Only the functions required by NeuroTD are included here.
 """
-import os
+from pathlib import Path
 import warnings
 
 import h5py
 import numpy as np
 import pynwb
+
+
+def session_nwb_path(folder, subject, session):
+    """Find one NWB asset by its DANDI subject and session entities."""
+    subject_id = f"sub-{subject:02d}"
+    prefix = f"{subject_id}_ses-{session:02d}"
+    directory = Path(folder) / subject_id
+    matches = sorted(
+        path for path in directory.glob(f"{prefix}*.nwb")
+        if path.is_file() and (path.stem == prefix or path.stem.startswith(prefix + "_"))
+    )
+    if not matches:
+        raise FileNotFoundError(f"No NWB file for {prefix} in {directory}")
+    if len(matches) > 1:
+        raise ValueError(f"Multiple NWB files for {prefix}: {', '.join(path.name for path in matches)}")
+    return matches[0]
+
 
 def load_iEEG_micro(subject, session, folder='data/hiEEG', format='old'):
     """
@@ -39,15 +56,8 @@ def load_iEEG_micro(subject, session, folder='data/hiEEG', format='old'):
     format_types = ('old', 'new')
     assert format in format_types, f'Unknown format type "{format}", expected one of {format_types}'
 
-    # Formatting
-    file_string = f'sub-{subject:02d}/'
-    file_string = os.path.join(
-        file_string,
-        os.listdir(os.path.join(folder, file_string))[session-1]
-    )
-
-    # Load file
-    nwbfile = pynwb.NWBHDF5IO(os.path.join(folder, file_string), mode='r').read()
+    file_path = session_nwb_path(folder, subject, session)
+    nwbfile = pynwb.NWBHDF5IO(str(file_path), mode='r').read()
 
     # Extract data
     if format == 'old':
@@ -107,7 +117,7 @@ def load_iEEG_micro(subject, session, folder='data/hiEEG', format='old'):
         'set_size': micro_trials['set_size'].to_numpy(),
         'correct': micro_correct,
         'response_time': micro_answers_time - (micro_trials['start_time'].to_numpy() + 6),
-        'fname': file_string,
+        'fname': str(file_path.relative_to(folder)),
     }
 
     return data, meta

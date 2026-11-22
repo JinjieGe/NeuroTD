@@ -120,13 +120,14 @@ def main():
         steps = [
             ('score_uncertainty', 'supplement_tables.py', ['--output-dir', str(table_dir)]),
             ('session_inference', 'code/calibrated_welch.py', ['--table-dir', str(table_dir)]),
-            ('dynamic_fixed', 'summarize_matched_controls.py', []),
+            ('dynamic_fixed', 'summarize_matched_controls.py', ['--table-dir', str(table_dir)]),
+            ('dynamic_fixed', 'observed_departures.py', ['--table-dir', str(table_dir)]),
         ]
         for study, script, options in steps:
             result = execute(workspace, study, script, options)
             if result:
                 raise SystemExit(result)
-        print(f'Supplementary tables S1–S9: {table_dir}')
+        print(f'Supplementary tables S1–S9, S11–S12 and Supplementary Data S1: {table_dir}')
         print(f"Regional comparisons: {workspace / 'session_inference/outputs'}")
         print(f"Matched controls: {workspace / 'dynamic_fixed/outputs/matched_control_summary.json'}")
         return
