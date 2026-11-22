@@ -1,6 +1,6 @@
 # Response figures from archived aggregate results
 
-Comments: 1.3,3.1,3.2.
+Comments: 1.2, 3.1, 3.2.
 
 Research supplement; see the central evidence map for interpretation limits.
 

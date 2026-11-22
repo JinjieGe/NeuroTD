@@ -13,10 +13,8 @@ All paths below are relative to the repository root.
 | `src/neurotd/fig1_scheme_xy_curves_freeform_.py` | `examples/simulations/fig1_scheme_xy_curves_freeform_.py` |
 | `src/neurotd/fig2_simulation_discrete_shift.py` | `examples/simulations/fig2_simulation_discrete_shift.py` |
 | `src/neurotd/fig3_simulation_continuous_shift.py` | `examples/simulations/fig3_simulation_continuous_shift.py` |
-| `src/neurotd/simulation_upsampling*.py` | `examples/simulations/` (same filenames) |
 | `src/neurotd/app_iEEG/fig4_app_iEEG.py` | `examples/ieeg/fig4_app_iEEG.py` |
-| `src/neurotd/app_ephys_gene/fig5_app_ephys_gene.py` and four preprocessing scripts | `examples/patchseq/` (same filenames) |
-| `src/neurotd/simulation.py` and `temp_demonstrate_why_this_method.py` | `examples/legacy/` (same filenames) |
+| `src/neurotd/app_ephys_gene/fig5_app_ephys_gene.py` and three preprocessing scripts | `examples/patchseq/` (same filenames) |
 | `src/neurotd/app_ephys_gene/data/processed/` | `data/processed/` |
 | `src/neurotd/img/` | `docs/assets/` |
 
@@ -43,7 +41,7 @@ or the other figure names described in the root README.
 - Generated results, virtual environments and raw inputs are ignored by Git.
   The four already-published processed data files are explicitly allowlisted.
 
-## Validation performed
+## Initial migration checks
 
 The comparison baseline was upstream commit
 `1a6c4f23818bcfe3152f947c54c553a92edeca0c`. Before and after runs used Python
@@ -55,7 +53,7 @@ editable installation was used for the reorganized checkout.
 | Offline unit tests (`python -m unittest discover -s tests -v`) | 11 tests passed |
 | Figure 2 full grid, 11 noise levels by 6 window sizes | All 66 result rows and columns exactly equal before and after; CSV bytes also equal |
 | Figure 3 reduced grid: noise 0 and 0.02, window 129 | Both result rows and all columns exactly equal before and after |
-| Five moved simulation/schematic scripts | Byte-identical to baseline |
+| Figure 1–3 scripts | Byte-identical to baseline at the initial migration |
 | Four moved data files and five moved images | Byte-identical to baseline |
 | Wheel build | Succeeded; wheel excludes data, images and example entry points |
 
@@ -69,10 +67,7 @@ this validation. To run the unchanged full experiment, use the standard launcher
 - Raw iEEG and raw Patch-seq analyses were not reproduced: they require external
   recordings, local data preparation and substantially greater resources.
   Figure 5's processed-data analysis was not run in this validation either.
-- The schematic and legacy exploratory scripts were not execution-tested.
-  Legacy scripts retain missing historical dependencies, as documented in
-  `examples/README.md`; they are preserved for reference, not advertised as
-  supported examples.
+- The schematic was not execution-tested in the initial migration.
 - Baseline-wrapper smoke tests check output shape and finiteness, not scientific
   correctness. This change does not repair or endorse CTW/FFT implementations,
   reassess comparative performance or revise manuscript novelty claims.

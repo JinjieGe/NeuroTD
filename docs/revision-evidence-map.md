@@ -4,8 +4,8 @@ Numbering follows the response document. Comment 2.6 corresponds to Reviewer 2's
 
 | Comment | Analysis or entry point | Evidence and scope |
 |---|---|---|
-| 1.1, 1.3 | `src/neurotd/time_varying_shift.py`, `score_uncertainty/`, `figures_13/` | Relationship between MSE and correlation under stated conditions, and comparisons against known delays. Performance applies to the settings and baseline implementations tested. |
-| 1.4 | `examples/`, `data/`, `docs/`, `tests/` | Separates the reusable package, examples, data, and documentation. |
+| 1.1, 1.2 | `src/neurotd/time_varying_shift.py`, `score_uncertainty/`, `figures_13/` | Relationship between MSE and correlation under stated conditions, and comparisons against known delays. Performance applies to the settings and baseline implementations tested. |
+| 1.3 | `examples/`, `data/`, `docs/`, `tests/` | Separates the reusable package, examples, data, and documentation. |
 | 2.2 | `score_uncertainty/audit.py`, `score_uncertainty/summarize.py` | Compares minimum-E and oracle windows in 1,200 noisy signal pairs with fixed clean templates. Includes high-noise failures on repeated waveforms. |
 | 2.3 | `score_uncertainty/`, `figures_23/build_figure.py`, `search_range/` | Candidate scores, selection frequencies, and search-range sensitivity. Assess accuracy separately against known delays. |
 | 2.4.1 | `score_uncertainty/` | Estimates residual covariance and the SD and Monte Carlo SE of E across independent signal pairs. The score retains its original window count. |
