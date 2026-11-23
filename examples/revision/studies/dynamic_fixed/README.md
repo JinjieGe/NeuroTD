@@ -1,3 +1,0 @@
-# Delay dynamics and matched controls
-
-`summarize_matched_controls.py` applies the Holm correction to the saved record-level rank p-values and summarizes tracking errors for the November 15 interference controls. For each record, T measures the mean squared deviation of window delays from their mean (ms²) and S their maximum absolute deviation (ms). Each panel tests both endpoints for 36 records as a family of 72 hypotheses. Detection and tracking error are reported separately for the known varying delays. `simulate.py` runs the earlier fixed-window experiment. See the [run instructions](../../../../docs/revision-running.md).

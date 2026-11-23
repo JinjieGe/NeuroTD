@@ -2,7 +2,6 @@ import ast
 import importlib
 import os
 from pathlib import Path
-import re
 import subprocess
 import sys
 import tempfile
@@ -34,11 +33,13 @@ class RepositoryTests(unittest.TestCase):
             with self.subTest(path=path):
                 ast.parse(path.read_text(), filename=str(path))
 
-    def test_readme_images_exist(self):
-        images = re.findall(r'<img src="([^"]+)"', (ROOT / "README.md").read_text())
-        self.assertEqual(len(images), 3)
-        for image in images:
-            self.assertTrue((ROOT / image).is_file())
+    def test_manuscript_figure_inputs(self):
+        from PIL import Image
+
+        for name in ("fig1.png", "fig2.png"):
+            with self.subTest(name=name), Image.open(ROOT / "docs/assets" / name) as image:
+                self.assertEqual(image.format, "PNG")
+                image.verify()
 
     def test_data_and_path_overrides(self):
         from neurotd import paths

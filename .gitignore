@@ -2,10 +2,8 @@
 *
 !.gitignore
 !.gitattributes
-!README.md
 !pyproject.toml
 !LICENSE.txt
-!CHANGELOG.md
 
 !src/
 !src/neurotd/
@@ -14,7 +12,6 @@
 !examples/
 !examples/**/
 !examples/**/*.py
-!examples/**/*.md
 !tests/
 !tests/**/
 !tests/**/*.py
@@ -23,7 +20,6 @@
 !docs/assets/
 !docs/assets/*.png
 !data/
-!data/README.md
 !data/processed/
 # Only the four previously published datasets are allowlisted.
 !data/processed/cell_name_to_cell_id_and_sample_id.csv

@@ -21,4 +21,4 @@ Numbering follows the response document. Comment 2.6 corresponds to Reviewer 2's
 | 2.8.4, 3.1 | `session_inference/`, `figures_28/`, `audit_v1/` through `audit_v3/` | Session variation, sample composition, and contact sensitivity. Anatomical labels require independent verification. |
 | 3.2 | `examples/patchseq/`, `dataset_reporting/`, `figures_13/` | Follows sweeps, ISTD slopes, cell summaries, and gene associations. Enrichment was not resubmitted to Metascape. The associations do not establish a causal mechanism. |
 
-Study directories in the table are relative to `examples/revision/studies/` unless a repository-level path is given. The layout derives from `reviewer1-4-restructure` (`9c998f2`). The [known-delay validation](known_delay_validation.md) derives from `validation/known-delay-window-selection` (`01637a1`, including `b214938`).
+Study directories in the table are relative to `examples/revision/studies/` unless a repository-level path is given. The repository layout was introduced in commit `9c998f2`, and the [known-delay validation](known_delay_validation.md) in commits `b214938` and `01637a1`.

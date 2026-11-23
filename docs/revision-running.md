@@ -9,6 +9,15 @@ python -m pip install -r examples/revision/requirements.txt
 
 Choose a separate output workspace. The launcher records the command, code hashes, environment, and exit status. Historical source and packaged hashes are in `examples/revision/source_manifest.csv`.
 
+## Manuscript figures and data
+
+The paper cites commit `5b552f6deef6c337d68f8824a447e403185c8317`. From a clone of this repository, `git checkout 5b552f6` selects that exact version.
+
+- Figures 2–3: run `python examples/run.py fig2 --headless` or `python examples/run.py fig3 --headless` for the discrete or continuous benchmark.
+- Figure 4: download the named NWB sessions from [DANDI 000574, version 0.250610.0938](https://dandiarchive.org/dandiset/000574/0.250610.0938). Run `python examples/run.py fig4 --headless --ieeg-dir /path/to/000574`. The supplied directory must contain `sub-01/` and its session files.
+- Figure 5: run `unzip -n data/processed/gxp_total_log2_filtered_pc.zip -d data/processed` before `python examples/run.py fig5 --headless`. The bundled sweep features, cell mapping, metadata and expression matrix support this analysis. Raw electrophysiology is available from [DANDI 000008](https://dandiarchive.org/dandiset/000008), and the [mini-atlas](https://github.com/berenslab/mini-atlas) provides expression data and metadata.
+- To render the revised artwork, use `python examples/revision/render_figure.py fig1 --output results/fig1.pdf`. After running the evidence command below, substitute `fig2` or `fig4` and change the output name. The Figure 4 renderer produces panels b–c; add `--original-fig4 /path/to/fig4.png` to include the original trace in panel a.
+
 ## Verify manuscript Table 1
 
 ```bash
@@ -31,6 +40,8 @@ python examples/revision/run.py evidence --workspace revision_runs/current
 | `supplement_tables/Table_S11.csv` | Familywise false positives, one-sided 95% upper limits, dynamic detection and delay RMSE under seven matched interference settings. |
 | `supplement_tables/Table_S12.csv`, `dynamic_fixed/outputs/observed_departures_holm72.csv` | Computes each p-value from its stored exceedance count; for each of 36 records and two endpoints takes the largest across three reference processes and applies Holm correction. S12 gives the focal maximum departure. The second file gives all 72 adjusted tests. |
 | `dynamic_fixed/outputs/matched_control_summary.json` | Holm tests from archived rank p-values, panel false-positive rates, record-level detection rates, and delay RMSE by interference condition. |
+
+For S11–S12, T is the mean squared deviation of the window delays from their mean (ms²), and S is their maximum absolute deviation from the mean (ms). Holm correction covers both endpoints for all 36 records (72 tests).
 
 The cross-trial reliability table (S10) is supplied with the manuscript. Its analysis is outside the distributed code. This entry works offline. Run manifests are in `run_manifests/`.
 

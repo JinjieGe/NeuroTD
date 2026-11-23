@@ -520,7 +520,7 @@ folder = str(Path(os.environ.get("NEUROTD_IEEG_DIR", data_path() / "raw/000574")
 if not Path(folder).is_dir():
     raise FileNotFoundError(
         f"iEEG dataset directory not found: {folder}. Download DANDI 000574 and set "
-        "NEUROTD_IEEG_DIR to the directory containing sub-01, etc. See data/README.md."
+        "NEUROTD_IEEG_DIR to the DANDI 000574 folder containing sub-01/."
     )
 n_jobs = n_cpu_cores = 8 if computer == 'R12' else 12  # 'R12' i9-11900KF 'R13' i7-12700KF
 subjects = [1]
