@@ -41,7 +41,9 @@ python examples/revision/run.py evidence --workspace revision_runs/current
 | `supplement_tables/Table_S12.csv`, `dynamic_fixed/outputs/observed_departures_holm72.csv` | Computes each p-value from its stored exceedance count; for each of 36 records and two endpoints takes the largest across three reference processes and applies Holm correction. S12 gives the focal maximum departure. The second file gives all 72 adjusted tests. |
 | `dynamic_fixed/outputs/matched_control_summary.json` | Holm tests from archived rank p-values, panel false-positive rates, record-level detection rates, and delay RMSE by interference condition. |
 
-For S11–S12, T is the mean squared deviation of the window delays from their mean (ms²), and S is their maximum absolute deviation from the mean (ms). Holm correction covers both endpoints for all 36 records (72 tests).
+The note to Table S5 uses the [window covariance decomposition](../examples/revision/evidence/score_uncertainty/covariance_decomposition.csv). For the 36 settings with nonzero noise and 200 independent signal pairs each, compare `V_full` (including covariance) with `V_ind` (independent-window approximation). The estimated variance of the mean window residual was larger with covariance in 35 settings. The CV column in S5 instead summarizes the variation of the record-level E scores across signal pairs.
+
+For S11–S12, the window length is fixed at 1,001 samples and the hop at 500 samples. T is the mean squared deviation of the window delays from their mean (ms²), and S is their maximum absolute deviation from the mean (ms). Holm correction covers both endpoints for all 36 records (72 tests).
 
 The cross-trial reliability table (S10) is supplied with the manuscript. Its analysis is outside the distributed code. This entry works offline. Run manifests are in `run_manifests/`.
 
